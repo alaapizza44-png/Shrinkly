@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n.dart';
 import '../services/compress_queue.dart';
+import '../services/native_bridge.dart';
 import '../services/settings.dart';
 import '../theme.dart';
 import '../widgets/ad_widgets.dart';
@@ -22,6 +23,20 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: CompressQueue.instance,
+      builder: (context, _) => PopScope(
+        // While compressing, Back only sends the app to the background so nothing is lost.
+        canPop: !CompressQueue.instance.running,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) NativeBridge.moveToBack();
+        },
+        child: _scaffold(context),
+      ),
+    );
+  }
+
+  Widget _scaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr('app_name')),

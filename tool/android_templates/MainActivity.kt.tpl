@@ -9,7 +9,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 
-/** Small helper channel: video info (duration, size, bitrate) and a thumbnail. */
+/** Small helper channel: video info, thumbnail, and "move app to background". */
 class MainActivity : FlutterActivity() {
     private val ui = Handler(Looper.getMainLooper())
 
@@ -17,21 +17,35 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "shrinkly/native")
             .setMethodCallHandler { call, result ->
-                val path = call.argument<String>("path")
-                if (path == null) {
-                    result.notImplemented()
-                } else if (call.method == "info") {
-                    Thread {
-                        val out = readInfo(path)
-                        ui.post { result.success(out) }
-                    }.start()
-                } else if (call.method == "thumb") {
-                    Thread {
-                        val out = readThumb(path)
-                        ui.post { result.success(out) }
-                    }.start()
-                } else {
-                    result.notImplemented()
+                when (call.method) {
+                    // Back button while compressing: keep the app (and its state) alive.
+                    "toBack" -> {
+                        moveTaskToBack(true)
+                        result.success(true)
+                    }
+                    "info" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.success(null)
+                        } else {
+                            Thread {
+                                val out = readInfo(path)
+                                ui.post { result.success(out) }
+                            }.start()
+                        }
+                    }
+                    "thumb" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.success(null)
+                        } else {
+                            Thread {
+                                val out = readThumb(path)
+                                ui.post { result.success(out) }
+                            }.start()
+                        }
+                    }
+                    else -> result.notImplemented()
                 }
             }
     }

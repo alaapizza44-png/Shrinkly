@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
@@ -20,6 +19,22 @@ class VideoInfo {
   final int bitrate;
   final double fps;
 
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'd': durationMs,
+        'w': width,
+        'h': height,
+        'b': bitrate,
+        'f': fps,
+      };
+
+  factory VideoInfo.fromJson(Map<String, dynamic> m) => VideoInfo(
+        durationMs: (m['d'] as num?)?.toInt() ?? 0,
+        width: (m['w'] as num?)?.toInt() ?? 0,
+        height: (m['h'] as num?)?.toInt() ?? 0,
+        bitrate: (m['b'] as num?)?.toInt() ?? 0,
+        fps: (m['f'] as num?)?.toDouble() ?? 0,
+      );
+
   String get durationLabel {
     final s = (durationMs / 1000).round();
     final h = s ~/ 3600;
@@ -40,6 +55,13 @@ class NativeBridge {
   NativeBridge._();
 
   static const MethodChannel _ch = MethodChannel('shrinkly/native');
+
+  /// Sends the app to the background (like Home) instead of closing it.
+  static Future<void> moveToBack() async {
+    try {
+      await _ch.invokeMethod<void>('toBack');
+    } catch (_) {}
+  }
 
   static Future<VideoInfo?> info(String path) async {
     try {

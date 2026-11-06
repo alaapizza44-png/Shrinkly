@@ -26,6 +26,11 @@ Compression re-encodes every frame on the phone, so large / long / high-resoluti
 warm up. Version 2 computes the bitrate itself from the video's duration (single pass) instead of letting the plugin chase a size,
 and switches to a lower resolution when the target is very small. Compare with the same file as before and tell me the timing.
 
+## Leaving the app while compressing
+Back now sends the app to the background while a compression is running (instead of closing it), the list is saved on the
+device, and the app uses a single activity so tapping the progress notification returns to it. If Android still closes the app,
+the list comes back when you reopen it and an interrupted video shows "Stopped - press Compress to try again".
+
 ## What is NOT verified yet
 This prototype has never been compiled or run. It uses the `light_compressor_v2` plugin (API read from its documentation).
 Please test on a real phone: a short video, a large video (1 GB+), cancelling, leaving the app during compression, and the

@@ -1,10 +1,12 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:light_compressor_v2/light_compressor_v2.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n.dart';
 import 'ad_service.dart';
@@ -50,6 +52,28 @@ class Job {
 
   String get name => path.split('/').last;
 
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'path': path,
+        'size': originalBytes,
+        'state': state.index,
+        'out': outBytes,
+        'missed': targetMissed,
+        if (info != null) 'info': info!.toJson(),
+      };
+
+  static Job? fromJson(Map<String, dynamic> m) {
+    final path = m['path'];
+    if (path is! String) return null;
+    final j = Job(path, (m['size'] as num?)?.toInt() ?? 0);
+    final st = (m['state'] as num?)?.toInt() ?? 0;
+    j.state = JobState.values[st.clamp(0, JobState.values.length - 1).toInt()];
+    j.outBytes = (m['out'] as num?)?.toInt() ?? 0;
+    j.targetMissed = m['missed'] == true;
+    final i = m['info'];
+    if (i is Map) j.info = VideoInfo.fromJson(Map<String, dynamic>.from(i));
+    return j;
+  }
+
   bool get pending =>
       state == JobState.waiting || state == JobState.failed || state == JobState.cancelled;
 
@@ -85,6 +109,45 @@ class CompressQueue extends ChangeNotifier {
   bool running = false;
   bool _cancel = false;
   Job? _current;
+  SharedPreferences? _prefs;
+
+  Future<void> _save() async {
+    try {
+      _prefs ??= await SharedPreferences.getInstance();
+      await _prefs!.setString('queue_v1', jsonEncode(jobs.map((j) => j.toJson()).toList()));
+    } catch (_) {}
+  }
+
+  /// Brings back the list after the app was closed or killed while compressing.
+  /// A job that was running is shown as stopped (press Compress to run it again).
+  Future<void> restore() async {
+    try {
+      _prefs = await SharedPreferences.getInstance();
+      final raw = _prefs!.getString('queue_v1');
+      if (raw != null) {
+        for (final e in jsonDecode(raw) as List<dynamic>) {
+          final j = Job.fromJson(Map<String, dynamic>.from(e as Map));
+          if (j == null) continue;
+          if (j.state != JobState.done && !File(j.path).existsSync()) continue;
+          if (j.state == JobState.running) j.state = JobState.cancelled;
+          jobs.add(j);
+        }
+      }
+    } catch (e) {
+      debugPrint('restore failed: $e');
+    }
+    // Only wipe the picker's cache when nothing is waiting to be compressed.
+    if (jobs.isEmpty) await clearPickerCache();
+    for (final j in jobs) {
+      if (File(j.path).existsSync()) unawaited(_loadThumb(j));
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadThumb(Job j) async {
+    j.thumb = await NativeBridge.thumb(j.path);
+    notifyListeners();
+  }
 
   int get pendingCount => jobs.where((j) => j.pending).length;
 
@@ -114,7 +177,10 @@ class CompressQueue extends ChangeNotifier {
       unawaited(_enrich(job));
       added = true;
     }
-    if (added) notifyListeners();
+    if (added) {
+      notifyListeners();
+      unawaited(_save());
+    }
     return added;
   }
 
@@ -122,20 +188,22 @@ class CompressQueue extends ChangeNotifier {
     final info = await NativeBridge.info(j.path);
     j.info = info;
     notifyListeners();
-    j.thumb = await NativeBridge.thumb(j.path);
-    notifyListeners();
+    unawaited(_save());
+    await _loadThumb(j);
   }
 
   void remove(Job j) {
     if (running) return;
     jobs.remove(j);
     notifyListeners();
+    unawaited(_save());
   }
 
   Future<void> clear() async {
     if (running) return;
     jobs.clear();
     notifyListeners();
+    await _save();
     await clearPickerCache();
   }
 
@@ -193,6 +261,7 @@ class CompressQueue extends ChangeNotifier {
       j.state = JobState.running;
       j.progress = 0;
       notifyListeners();
+      unawaited(_save());
       try {
         final dot = j.name.lastIndexOf('.');
         final base = dot > 0 ? j.name.substring(0, dot) : j.name;
@@ -208,7 +277,7 @@ class CompressQueue extends ChangeNotifier {
             videoBitrateInMbps: double.parse((bps / 1000000).toStringAsFixed(3)),
           );
           // Very small targets look blocky at full size; a smaller picture is faster and cleaner.
-          if (j.lowQuality(t)) quality = VideoQuality.low;
+          if ((j.plannedDensity(t) ?? 1) < 0.06) quality = VideoQuality.low;
         } else {
           video = Video(videoName: '${base}_shrunk.mp4', targetSizeMb: t);
         }
@@ -238,6 +307,7 @@ class CompressQueue extends ChangeNotifier {
       }
       _current = null;
       notifyListeners();
+      unawaited(_save());
     }
 
     await sub.cancel();
@@ -247,6 +317,7 @@ class CompressQueue extends ChangeNotifier {
     }
     running = false;
     notifyListeners();
+    unawaited(_save());
     if (finishedAny && !_cancel) AdService.instance.onJobFinished();
   }
 }

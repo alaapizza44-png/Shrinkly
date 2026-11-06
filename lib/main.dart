@@ -15,8 +15,8 @@ Future<void> main() async {
   await SettingsController.instance.load();
   CompressQueue.instance.targetMb =
       SettingsController.instance.targetMb == 0 ? null : SettingsController.instance.targetMb;
-  // Remove copies of videos left in the cache by a previous session.
-  unawaited(CompressQueue.clearPickerCache());
+  // Restore the list (e.g. after the app was closed while compressing in the background).
+  await CompressQueue.instance.restore();
   runApp(const ShrinklyApp());
   unawaited(AdService.instance.init());
 }

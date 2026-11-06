@@ -99,6 +99,12 @@ def patch_manifest():
         new_tag = tag.replace("<application", f'<application android:label="{APP_LABEL}"', 1)
     s = s.replace(tag, new_tag, 1)
 
+    # One activity instance: tapping the progress notification returns to the running app.
+    if 'android:launchMode="singleTop"' in s:
+        s = s.replace('android:launchMode="singleTop"', 'android:launchMode="singleTask"', 1)
+    elif "android:launchMode=" not in s:
+        s = s.replace("<activity", '<activity android:launchMode="singleTask"', 1)
+
     extra = f"""
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
