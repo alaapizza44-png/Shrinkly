@@ -61,8 +61,38 @@ jobs:
             echo "No keystore secrets set: building with the debug key (fine for testing)."
           fi
 
+      - name: Pin compression plugin version
+        run: |
+          sed -i 's/^  light_compressor_v2:.*/  light_compressor_v2: 1.9.1/' pubspec.yaml
+          grep -n light_compressor_v2 pubspec.yaml
+
       - name: Get packages
         run: flutter pub get
+
+      - name: Show plugin info (debug)
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.parse
+          cfg = json.load(open('.dart_tool/package_config.json'))
+          for p in cfg['packages']:
+              if p['name'] != 'light_compressor_v2':
+                  continue
+              root = p['rootUri']
+              if root.startswith('file://'):
+                  root = urllib.parse.unquote(root[len('file://'):])
+              else:
+                  root = os.path.normpath(os.path.join('.dart_tool', root))
+              print('plugin root:', root)
+              ps = open(os.path.join(root, 'pubspec.yaml')).read()
+              i = ps.find('plugin:')
+              print(ps[i:i + 500])
+              for d, _, fs in os.walk(os.path.join(root, 'android')):
+                  for f in fs:
+                      if f.endswith(('.kt', '.java', '.gradle', '.kts')):
+                          print('file:', os.path.join(d, f))
+                          if 'Plugin' in f:
+                              print(''.join(open(os.path.join(d, f)).readlines()[:25]))
+          PY
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
