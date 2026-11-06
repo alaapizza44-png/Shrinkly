@@ -1,0 +1,5 @@
+analyzer:
+  errors:
+    # Some of the ad / webview APIs are deprecated in newer plugin versions but still work.
+    deprecated_member_use: ignore
+    deprecated_member_use_from_same_package: ignore

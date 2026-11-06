@@ -1,0 +1,55 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+
+import 'l10n.dart';
+import 'screens/home_screen.dart';
+import 'services/ad_service.dart';
+import 'services/compress_queue.dart';
+import 'services/settings.dart';
+import 'theme.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SettingsController.instance.load();
+  CompressQueue.instance.targetMb =
+      SettingsController.instance.targetMb == 0 ? null : SettingsController.instance.targetMb;
+  // Remove copies of videos left in the cache by a previous session.
+  unawaited(CompressQueue.clearPickerCache());
+  runApp(const ShrinklyApp());
+  unawaited(AdService.instance.init());
+}
+
+class ShrinklyApp extends StatelessWidget {
+  const ShrinklyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: SettingsController.instance,
+      builder: (context, _) => MaterialApp(
+        title: 'Shrinkly',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: SettingsController.instance.themeMode,
+        locale: SettingsController.instance.locale,
+        supportedLocales: const <Locale>[Locale('en'), Locale('ar')],
+        localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        // Arabic devices get Arabic, everything else gets English.
+        localeResolutionCallback: (locale, supported) =>
+            (locale != null && locale.languageCode == 'ar') ? const Locale('ar') : const Locale('en'),
+        builder: (context, child) {
+          L.code = Localizations.localeOf(context).languageCode;
+          return child ?? const SizedBox.shrink();
+        },
+        home: const HomeScreen(),
+      ),
+    );
+  }
+}
