@@ -65,6 +65,37 @@ def write_kotlin():
     print(f"[patch_android] MainActivity written for package {pkg}")
 
 
+MEDIA3 = "1.5.1"
+
+
+def patch_dependencies():
+    """Adds the Media3 (Transformer) libraries used by the Shorts engine."""
+    for name in ("build.gradle.kts", "build.gradle"):
+        p = os.path.join(APP, name)
+        if not os.path.exists(p):
+            continue
+        s = read(p)
+        if "media3-transformer" in s:
+            print("[patch_android] media3 dependencies already present")
+            return
+        kts = name.endswith(".kts")
+        if kts:
+            libs = "".join(f'    implementation("androidx.media3:{m}:{MEDIA3}")\n'
+                           for m in ("media3-transformer", "media3-effect", "media3-common"))
+        else:
+            libs = "".join(f"    implementation 'androidx.media3:{m}:{MEDIA3}'\n"
+                           for m in ("media3-transformer", "media3-effect", "media3-common"))
+        m = re.search(r"^dependencies\s*\{\n", s, re.M)
+        if m:
+            s = s[:m.end()] + libs + s[m.end():]
+        else:
+            s = s.rstrip() + "\n\ndependencies {\n" + libs + "}\n"
+        write(p, s)
+        print("[patch_android] media3 dependencies added to", name)
+        return
+    die("app build.gradle(.kts) not found")
+
+
 def patch_manifest():
     if not os.path.exists(MANIFEST):
         die("AndroidManifest.xml not found")
@@ -85,6 +116,7 @@ def patch_manifest():
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
 """
     s, n = re.subn(r"(<manifest\b[^>]*>)", lambda m: m.group(1) + perms, s, count=1)
     if n != 1:
@@ -232,6 +264,7 @@ def main():
     patch_manifest()
     write_kotlin()
     patch_min_sdk()
+    patch_dependencies()
     patch_signing()
     install_icons()
     print("[patch_android] done")

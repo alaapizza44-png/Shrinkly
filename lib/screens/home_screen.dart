@@ -39,7 +39,7 @@ class HomeScreen extends StatelessWidget {
   Widget _scaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('app_name')),
+        title: Text(context.tr('tab_compress')),
         actions: <Widget>[
           IconButton(
             tooltip: context.tr('settings'),
@@ -54,6 +54,13 @@ class HomeScreen extends StatelessWidget {
         top: false,
         child: Column(
           children: <Widget>[
+            if (CompressQueue.instance.picking) ...<Widget>[
+              const LinearProgressIndicator(),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(context.tr('preparing')),
+              ),
+            ],
             Expanded(
               child: ListenableBuilder(
                 listenable: CompressQueue.instance,

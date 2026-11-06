@@ -51,6 +51,18 @@ class VideoInfo {
   }
 }
 
+/// Result of one Shorts export call.
+class ExportOutcome {
+  const ExportOutcome(this.status, [this.message]);
+
+  /// 'ok' | 'cancelled' | 'error'
+  final String status;
+  final String? message;
+
+  bool get ok => status == 'ok';
+  bool get cancelled => status == 'cancelled';
+}
+
 class NativeBridge {
   NativeBridge._();
 
@@ -61,6 +73,74 @@ class NativeBridge {
     try {
       await _ch.invokeMethod<void>('toBack');
     } catch (_) {}
+  }
+
+  /// Exports one 9:16 clip with Media3 and saves it to Movies/Shrinkly.
+  static Future<ExportOutcome> exportShort({
+    required String path,
+    required int startMs,
+    required int endMs,
+    required bool fill,
+    required int width,
+    required int height,
+    required int bitrate,
+    required String outName,
+    String? overlayPath,
+  }) async {
+    try {
+      final r = await _ch.invokeMethod<dynamic>('exportShort', <String, dynamic>{
+        'path': path,
+        'startMs': startMs,
+        'endMs': endMs,
+        'fill': fill,
+        'width': width,
+        'height': height,
+        'bitrate': bitrate,
+        'outName': outName,
+        'overlay': overlayPath,
+      });
+      if (r is Map) {
+        return ExportOutcome((r['status'] as String?) ?? 'error', r['message'] as String?);
+      }
+      return const ExportOutcome('error', 'no answer');
+    } catch (e) {
+      return ExportOutcome('error', e.toString());
+    }
+  }
+
+  /// 0..1 progress of the running Shorts export.
+  static Future<double> exportProgress() async {
+    try {
+      return ((await _ch.invokeMethod<dynamic>('exportProgress')) as num?)?.toDouble() ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static Future<void> cancelExport() async {
+    try {
+      await _ch.invokeMethod<void>('cancelExport');
+    } catch (_) {}
+  }
+
+  /// True while the plugin's background compression service is running.
+  static Future<bool> compressionActive() async {
+    try {
+      return (await _ch.invokeMethod<bool>('active')) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Size in bytes of [name] in the Movies folder if it was added after [sinceMs], else null.
+  static Future<int?> findOutput(String name, int sinceMs) async {
+    try {
+      final r = await _ch.invokeMethod<dynamic>(
+          'findOutput', <String, dynamic>{'name': name, 'since': sinceMs});
+      return (r as num?)?.toInt();
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<VideoInfo?> info(String path) async {

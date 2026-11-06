@@ -1,9 +1,16 @@
-# Shrinkly - video compressor (prototype)
+# Shrinkly - Shorts maker + video compressor (prototype)
 
 Shrink your own videos to a size you choose (10 / 25 / 50 / 100 MB, a custom number, or "Auto"), privately on the phone.
 Compression runs on the device (nothing is uploaded), continues in the background with a notification, and saves the result
 to the Movies folder. English + Arabic (follows the device language). The app name "Shrinkly" is a placeholder - check it is
 free on Google Play before publishing, and change it in `tool/patch_android.py` (`APP_LABEL`), `lib/` and the workflows.
+
+## Tabs
+* **Shorts** (main): pick a long video, choose the part (start / end), the picture (Fill = crop to 9:16, Fit = whole picture with
+  black bars), clip length (one clip, or 30 / 60 / 90 s clips), quality (720p / 480p / 360p) and an optional caption. Exports with
+  Android's official Media3 Transformer (GPU based) to Movies/Shrinkly. The caption is drawn by Flutter as an image, so Arabic
+  works. Not included yet: blurred background mode (planned next).
+* **Compress**: shrink a video to a chosen size (see below).
 
 ## Build the APK without Android Studio
 1. Create a new GitHub repository and upload **all files and folders** of this project (keep the folder structure:

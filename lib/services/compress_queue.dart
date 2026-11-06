@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n.dart';
+import '../features/shorts/shorts_controller.dart';
 import 'ad_service.dart';
 import 'native_bridge.dart';
 
@@ -52,12 +53,23 @@ class Job {
 
   String get name => path.split('/').last;
 
+  /// When compression of this video started (ms since epoch); used to find its output file.
+  int startedAt = 0;
+
+  /// File name of the compressed result.
+  String get outName {
+    final dot = name.lastIndexOf('.');
+    final base = dot > 0 ? name.substring(0, dot) : name;
+    return '${base}_shrunk.mp4';
+  }
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'path': path,
         'size': originalBytes,
         'state': state.index,
         'out': outBytes,
         'missed': targetMissed,
+        'st': startedAt,
         if (info != null) 'info': info!.toJson(),
       };
 
@@ -69,6 +81,7 @@ class Job {
     j.state = JobState.values[st.clamp(0, JobState.values.length - 1).toInt()];
     j.outBytes = (m['out'] as num?)?.toInt() ?? 0;
     j.targetMissed = m['missed'] == true;
+    j.startedAt = (m['st'] as num?)?.toInt() ?? 0;
     final i = m['info'];
     if (i is Map) j.info = VideoInfo.fromJson(Map<String, dynamic>.from(i));
     return j;
@@ -129,7 +142,6 @@ class CompressQueue extends ChangeNotifier {
           final j = Job.fromJson(Map<String, dynamic>.from(e as Map));
           if (j == null) continue;
           if (j.state != JobState.done && !File(j.path).existsSync()) continue;
-          if (j.state == JobState.running) j.state = JobState.cancelled;
           jobs.add(j);
         }
       }
@@ -142,6 +154,53 @@ class CompressQueue extends ChangeNotifier {
       if (File(j.path).existsSync()) unawaited(_loadThumb(j));
     }
     notifyListeners();
+    // A video that was being compressed when the app was closed keeps compressing in the
+    // background service: watch for it to finish instead of calling it cancelled.
+    if (jobs.any((j) => j.state == JobState.running)) _monitorDetached();
+  }
+
+  Timer? _monitor;
+  bool _checking = false;
+  final Map<String, int> _lastSize = <String, int>{};
+
+  void _monitorDetached() {
+    if (_monitor != null) return;
+    running = true;
+    notifyListeners();
+    _monitor = Timer.periodic(const Duration(seconds: 3), (_) => _checkDetached());
+    unawaited(_checkDetached());
+  }
+
+  Future<void> _checkDetached() async {
+    if (_checking) return;
+    _checking = true;
+    try {
+      final alive = await NativeBridge.compressionActive();
+      var waiting = false;
+      for (final j in jobs.where((j) => j.state == JobState.running).toList()) {
+        final size = await NativeBridge.findOutput(j.outName, j.startedAt);
+        if (size != null && size > 0 && (!alive || _lastSize[j.path] == size)) {
+          j.state = JobState.done;
+          j.progress = 1;
+          j.outBytes = size;
+          j.targetMissed = false;
+        } else if (!alive) {
+          j.state = JobState.cancelled;
+        } else {
+          _lastSize[j.path] = size ?? 0;
+          waiting = true;
+        }
+      }
+      if (!waiting) {
+        _monitor?.cancel();
+        _monitor = null;
+        running = false;
+      }
+      notifyListeners();
+      unawaited(_save());
+    } finally {
+      _checking = false;
+    }
   }
 
   Future<void> _loadThumb(Job j) async {
@@ -165,8 +224,18 @@ class CompressQueue extends ChangeNotifier {
   }
 
   /// Opens the system picker. Returns false if nothing was added.
+  bool picking = false;
+
   Future<bool> pick() async {
-    final r = await FilePicker.platform.pickFiles(type: FileType.video, allowMultiple: true);
+    picking = true;
+    notifyListeners();
+    final FilePickerResult? r;
+    try {
+      r = await FilePicker.platform.pickFiles(type: FileType.video, allowMultiple: true);
+    } finally {
+      picking = false;
+      notifyListeners();
+    }
     if (r == null) return false;
     var added = false;
     for (final f in r.files) {
@@ -204,7 +273,8 @@ class CompressQueue extends ChangeNotifier {
     jobs.clear();
     notifyListeners();
     await _save();
-    await clearPickerCache();
+    // The picker cache is shared with the Shorts tab: keep it while a Shorts video is open.
+    if (ShortsController.instance.path == null) await clearPickerCache();
   }
 
   /// The picker copies chosen videos into the app cache; remove those copies.
@@ -219,6 +289,17 @@ class CompressQueue extends ChangeNotifier {
     try {
       await LightCompressor().cancelCompression();
     } catch (_) {}
+    if (_monitor != null) {
+      // Watching a compression that started before the app was reopened.
+      _monitor?.cancel();
+      _monitor = null;
+      for (final j in jobs) {
+        if (j.state == JobState.running) j.state = JobState.cancelled;
+      }
+      running = false;
+      notifyListeners();
+      unawaited(_save());
+    }
   }
 
   Future<void> start() async {
@@ -263,8 +344,8 @@ class CompressQueue extends ChangeNotifier {
       notifyListeners();
       unawaited(_save());
       try {
-        final dot = j.name.lastIndexOf('.');
-        final base = dot > 0 ? j.name.substring(0, dot) : j.name;
+        j.startedAt = DateTime.now().millisecondsSinceEpoch;
+        unawaited(_save());
         // One pass with a bitrate computed from the duration is much faster than asking the
         // plugin to hit a size itself (which may encode more than once). Falls back to the
         // plugin's own target-size mode when the duration could not be read.
@@ -273,13 +354,13 @@ class CompressQueue extends ChangeNotifier {
         var quality = VideoQuality.medium;
         if (t != null && bps != null) {
           video = Video(
-            videoName: '${base}_shrunk.mp4',
+            videoName: j.outName,
             videoBitrateInMbps: double.parse((bps / 1000000).toStringAsFixed(3)),
           );
           // Very small targets look blocky at full size; a smaller picture is faster and cleaner.
           if ((j.plannedDensity(t) ?? 1) < 0.06) quality = VideoQuality.low;
         } else {
-          video = Video(videoName: '${base}_shrunk.mp4', targetSizeMb: t);
+          video = Video(videoName: j.outName, targetSizeMb: t);
         }
         final r = await lc.compressVideo(
           path: j.path,
