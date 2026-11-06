@@ -36,7 +36,7 @@ jobs:
           git checkout -- lib pubspec.yaml analysis_options.yaml || true
           rm -rf test
 
-      - name: Patch Android project (manifest, icons, AdMob id)
+      - name: Patch Android project (manifest, MainActivity, icons, AdMob id)
         env:
           ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
         run: python3 tool/patch_android.py
@@ -63,13 +63,13 @@ jobs:
 
       - name: Pin compression plugin version
         run: |
-          sed -i 's/^  light_compressor_v2:.*/  light_compressor_v2: 1.9.1/' pubspec.yaml
+          sed -i 's/^  light_compressor_v2:.*/  light_compressor_v2: 1.10.0/' pubspec.yaml
           grep -n light_compressor_v2 pubspec.yaml
 
       - name: Get packages
         run: flutter pub get
 
-      - name: Inspect and fix plugin
+      - name: Fix plugin Kotlin setup
         run: |
           python3 - <<'PY'
           import json, os, re, urllib.parse
@@ -84,17 +84,12 @@ jobs:
                   root = os.path.normpath(os.path.join('.dart_tool', root))
               f = os.path.join(root, 'android', 'build.gradle.kts')
               s = open(f).read()
-              print('----- plugin build.gradle.kts (before) -----')
-              print(s)
               if 'kotlin-android' not in s and 'org.jetbrains.kotlin.android' not in s:
                   s2 = re.sub(r'plugins\s*\{', 'plugins {\n    id("kotlin-android")', s, count=1)
                   if s2 != s:
                       open(f, 'w').write(s2)
                       print('>>> PATCHED: added the kotlin-android plugin')
           PY
-          for f in android/settings.gradle.kts android/settings.gradle android/build.gradle.kts android/app/build.gradle.kts; do
-            if [ -f "$f" ]; then echo "----- $f -----"; cat "$f"; fi
-          done
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
