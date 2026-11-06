@@ -67,6 +67,10 @@ class L {
     'ad_privacy': 'Ad privacy options',
     'privacy_policy': 'Privacy policy',
     'about': 'About',
+    'feat1':'Pick the size','feat1_sub':'10, 25, 50, 100 MB or your own number',
+    'feat2':'Stays private','feat2_sub':'Nothing leaves your phone',
+    'feat3':'Works in background','feat3_sub':'Leave the app while it compresses',
+    'low_quality':'Very small target for this video - quality will drop',
     'about_text': 'Shrinkly 1.0.0\nCompress your own videos so they are easy to send and store. Processing happens on your device.',
   };
 
@@ -115,6 +119,10 @@ class L {
     'ad_privacy': 'خيارات خصوصية الإعلانات',
     'privacy_policy': 'سياسة الخصوصية',
     'about': 'حول التطبيق',
+    'feat1':'اختر الحجم','feat1_sub':'10 أو 25 أو 50 أو 100 ميجا أو رقمك',
+    'feat2':'خصوصية كاملة','feat2_sub':'لا شيء يغادر هاتفك',
+    'feat3':'يعمل في الخلفية','feat3_sub':'اترك التطبيق أثناء الضغط',
+    'low_quality':'الحجم المطلوب صغير جدًا لهذا الفيديو - ستنخفض الجودة',
     'about_text': 'Shrinkly 1.0.0\nاضغط فيديوهاتك الخاصة ليسهل إرسالها وتخزينها. تتم المعالجة على جهازك.',
   };
 }

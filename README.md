@@ -21,6 +21,11 @@ Same steps as in the SnappyDown README: run "Create signing key (run once)", add
 `KEY_ALIAS`; publish `docs/privacy.html` with GitHub Pages (folder `/docs`). Replace `YOUR_EMAIL@example.com` in
 `docs/privacy.html` and `lib/config.dart` with your real contact e-mail first.
 
+## Speed notes
+Compression re-encodes every frame on the phone, so large / long / high-resolution / 60 fps videos take a while and the phone may
+warm up. Version 2 computes the bitrate itself from the video's duration (single pass) instead of letting the plugin chase a size,
+and switches to a lower resolution when the target is very small. Compare with the same file as before and tell me the timing.
+
 ## What is NOT verified yet
 This prototype has never been compiled or run. It uses the `light_compressor_v2` plugin (API read from its documentation).
 Please test on a real phone: a short video, a large video (1 GB+), cancelling, leaving the app during compression, and the

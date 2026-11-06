@@ -111,19 +111,62 @@ class _Empty extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(Icons.lock_outline_rounded, size: 18, color: cs.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(context.tr('private_note'),
-                      style: TextStyle(color: cs.onSurfaceVariant, height: 1.35)),
-                ),
-              ],
-            ),
+            const SizedBox(height: 16),
+            _Feature(icon: Icons.track_changes_rounded, title: 'feat1', sub: 'feat1_sub'),
+            _Feature(icon: Icons.lock_outline_rounded, title: 'feat2', sub: 'feat2_sub'),
+            _Feature(icon: Icons.notifications_active_outlined, title: 'feat3', sub: 'feat3_sub'),
+            const SizedBox(height: 6),
+            Text(context.tr('private_note'),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5, height: 1.35)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Feature extends StatelessWidget {
+  const _Feature({required this.icon, required this.title, required this.sub});
+
+  final IconData icon;
+  final String title;
+  final String sub;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: cs.primary.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: cs.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(context.tr(title), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text(context.tr(sub),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5, height: 1.3)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -350,16 +393,66 @@ class _JobTile extends StatelessWidget {
         break;
     }
 
+    final info = j.info;
+    final t = CompressQueue.instance.targetMb;
+    final warn = t != null && j.state == JobState.waiting && j.lowQuality(t) && info != null;
+
+    Widget thumb = ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 104,
+        height: 66,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            j.thumb != null
+                ? Image.memory(j.thumb!, fit: BoxFit.cover, gaplessPlayback: true)
+                : Container(
+                    color: cs.primary.withValues(alpha: 0.12),
+                    child: Icon(icon, color: color),
+                  ),
+            if (info != null && info.durationMs > 0)
+              Positioned(
+                right: 4,
+                bottom: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(info.durationLabel,
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            if (j.state == JobState.done)
+              Positioned(
+                left: 4,
+                top: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(color: AppTheme.mint, shape: BoxShape.circle),
+                  child: const Icon(Icons.check_rounded, size: 14, color: Colors.black),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    final meta = <String>[
+      if (info != null && info.resolutionLabel.isNotEmpty) info.resolutionLabel,
+      fmtBytes(j.originalBytes),
+    ].join('  ·  ');
+
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+        padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Icon(icon, color: color),
-            ),
+            thumb,
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -370,7 +463,25 @@ class _JobTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
-                  sub,
+                  if (j.state == JobState.waiting)
+                    Text(meta, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5))
+                  else
+                    sub,
+                  if (warn)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Icon(Icons.warning_amber_rounded, size: 15, color: AppTheme.coral),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(context.tr('low_quality'),
+                                style: const TextStyle(color: AppTheme.coral, fontSize: 12, height: 1.3)),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),

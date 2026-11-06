@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../l10n.dart';
 import 'ad_service.dart';
+import 'native_bridge.dart';
 
 enum JobState { waiting, running, done, skipped, failed, cancelled }
 
@@ -19,6 +21,32 @@ class Job {
   double progress = 0;
   int outBytes = 0;
   bool targetMissed = false;
+
+  /// Filled in shortly after the video is added (duration, size, thumbnail).
+  VideoInfo? info;
+  Uint8List? thumb;
+
+  /// Video bitrate (bits/s) needed to land near [targetMb]; null if the duration is unknown.
+  double? plannedVideoBps(int targetMb) {
+    final i = info;
+    if (i == null || i.durationMs <= 0) return null;
+    final seconds = i.durationMs / 1000.0;
+    final totalBits = targetMb * 8.0 * 1024 * 1024 * 0.93; // small safety margin
+    var v = totalBits / seconds - 160000; // leave room for the audio track
+    if (i.bitrate > 0 && v > i.bitrate * 0.9) v = i.bitrate * 0.9;
+    return v < 150000 ? 150000 : v;
+  }
+
+  /// Bits per pixel per frame the plan would give (H.264 looks poor below roughly 0.04).
+  double? plannedDensity(int targetMb) {
+    final i = info;
+    final v = plannedVideoBps(targetMb);
+    if (i == null || v == null || i.width <= 0 || i.height <= 0) return null;
+    final fps = i.fps > 0 ? i.fps : 30.0;
+    return v / (i.width * i.height * fps);
+  }
+
+  bool lowQuality(int targetMb) => (plannedDensity(targetMb) ?? 1) < 0.04;
 
   String get name => path.split('/').last;
 
@@ -81,11 +109,21 @@ class CompressQueue extends ChangeNotifier {
     for (final f in r.files) {
       final p = f.path;
       if (p == null || jobs.any((j) => j.path == p)) continue;
-      jobs.add(Job(p, f.size));
+      final job = Job(p, f.size);
+      jobs.add(job);
+      unawaited(_enrich(job));
       added = true;
     }
     if (added) notifyListeners();
     return added;
+  }
+
+  Future<void> _enrich(Job j) async {
+    final info = await NativeBridge.info(j.path);
+    j.info = info;
+    notifyListeners();
+    j.thumb = await NativeBridge.thumb(j.path);
+    notifyListeners();
   }
 
   void remove(Job j) {
@@ -158,11 +196,27 @@ class CompressQueue extends ChangeNotifier {
       try {
         final dot = j.name.lastIndexOf('.');
         final base = dot > 0 ? j.name.substring(0, dot) : j.name;
+        // One pass with a bitrate computed from the duration is much faster than asking the
+        // plugin to hit a size itself (which may encode more than once). Falls back to the
+        // plugin's own target-size mode when the duration could not be read.
+        final bps = t == null ? null : j.plannedVideoBps(t);
+        final Video video;
+        var quality = VideoQuality.medium;
+        if (t != null && bps != null) {
+          video = Video(
+            videoName: '${base}_shrunk.mp4',
+            videoBitrateInMbps: double.parse((bps / 1000000).toStringAsFixed(3)),
+          );
+          // Very small targets look blocky at full size; a smaller picture is faster and cleaner.
+          if (j.lowQuality(t)) quality = VideoQuality.low;
+        } else {
+          video = Video(videoName: '${base}_shrunk.mp4', targetSizeMb: t);
+        }
         final r = await lc.compressVideo(
           path: j.path,
-          videoQuality: VideoQuality.medium,
+          videoQuality: quality,
           isMinBitrateCheckEnabled: false,
-          video: Video(videoName: '${base}_shrunk.mp4', targetSizeMb: t),
+          video: video,
           android: AndroidConfig(isSharedStorage: true, saveAt: SaveAt.Movies),
           ios: IOSConfig(saveInGallery: false),
           background: BackgroundConfig(notificationTitle: L.t('notif_title')),

@@ -12,7 +12,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  light_compressor_v2: ^1.10.0
+  light_compressor_v2: 1.10.0
   file_picker: '>=8.1.4 <11.0.0'
   permission_handler: '>=11.3.1 <13.0.0'
   shared_preferences: ^2.3.2

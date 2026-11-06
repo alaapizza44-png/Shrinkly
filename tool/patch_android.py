@@ -12,6 +12,7 @@ Run from the repository root AFTER `flutter create --platforms=android ...`:
   * Wires release signing to android/key.properties (optional, written by CI from secrets).
   * Installs the launcher icons.
 """
+import glob
 import os
 import re
 import shutil
@@ -22,6 +23,7 @@ ANDROID = os.path.join(ROOT, "android")
 APP = os.path.join(ANDROID, "app")
 MANIFEST = os.path.join(APP, "src", "main", "AndroidManifest.xml")
 ICONS = os.path.join(ROOT, "tool", "icons")
+TPL = os.path.join(ROOT, "tool", "android_templates")
 
 TEST_APP_ID = "ca-app-pub-3940256099942544~3347511713"  # Google's sample AdMob app id
 APP_LABEL = "Shrinkly"
@@ -42,6 +44,25 @@ def write(p, s):
     os.makedirs(os.path.dirname(p), exist_ok=True)
     with open(p, "w", encoding="utf-8", newline="\n") as f:
         f.write(s)
+
+
+def find_package():
+    hits = glob.glob(os.path.join(APP, "src", "main", "kotlin", "**", "MainActivity.kt"), recursive=True)
+    if not hits:
+        hits = glob.glob(os.path.join(APP, "src", "main", "java", "**", "MainActivity.*"), recursive=True)
+    if not hits:
+        die("MainActivity not found - did `flutter create` run?")
+    m = re.search(r"^\s*package\s+([\w.]+)", read(hits[0]), re.M)
+    if not m:
+        die(f"could not read package name from {hits[0]}")
+    return m.group(1), hits[0]
+
+
+def write_kotlin():
+    """Replaces MainActivity with ours (adds the video info / thumbnail channel)."""
+    pkg, main_path = find_package()
+    write(main_path, read(os.path.join(TPL, "MainActivity.kt.tpl")).replace("__PKG__", pkg))
+    print(f"[patch_android] MainActivity written for package {pkg}")
 
 
 def patch_manifest():
@@ -203,6 +224,7 @@ def main():
     if not os.path.isdir(ANDROID):
         die("android/ folder not found. Run `flutter create --platforms=android .` first.")
     patch_manifest()
+    write_kotlin()
     patch_min_sdk()
     patch_signing()
     install_icons()
