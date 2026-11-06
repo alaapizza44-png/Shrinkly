@@ -69,10 +69,10 @@ jobs:
       - name: Get packages
         run: flutter pub get
 
-      - name: Show plugin info (debug)
+      - name: Inspect and fix plugin
         run: |
           python3 - <<'PY'
-          import json, os, urllib.parse
+          import json, os, re, urllib.parse
           cfg = json.load(open('.dart_tool/package_config.json'))
           for p in cfg['packages']:
               if p['name'] != 'light_compressor_v2':
@@ -82,17 +82,19 @@ jobs:
                   root = urllib.parse.unquote(root[len('file://'):])
               else:
                   root = os.path.normpath(os.path.join('.dart_tool', root))
-              print('plugin root:', root)
-              ps = open(os.path.join(root, 'pubspec.yaml')).read()
-              i = ps.find('plugin:')
-              print(ps[i:i + 500])
-              for d, _, fs in os.walk(os.path.join(root, 'android')):
-                  for f in fs:
-                      if f.endswith(('.kt', '.java', '.gradle', '.kts')):
-                          print('file:', os.path.join(d, f))
-                          if 'Plugin' in f:
-                              print(''.join(open(os.path.join(d, f)).readlines()[:25]))
+              f = os.path.join(root, 'android', 'build.gradle.kts')
+              s = open(f).read()
+              print('----- plugin build.gradle.kts (before) -----')
+              print(s)
+              if 'kotlin-android' not in s and 'org.jetbrains.kotlin.android' not in s:
+                  s2 = re.sub(r'plugins\s*\{', 'plugins {\n    id("kotlin-android")', s, count=1)
+                  if s2 != s:
+                      open(f, 'w').write(s2)
+                      print('>>> PATCHED: added the kotlin-android plugin')
           PY
+          for f in android/settings.gradle.kts android/settings.gradle android/build.gradle.kts android/app/build.gradle.kts; do
+            if [ -f "$f" ]; then echo "----- $f -----"; cat "$f"; fi
+          done
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
