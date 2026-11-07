@@ -56,6 +56,10 @@ class Job {
   /// When compression of this video started (ms since epoch); used to find its output file.
   int startedAt = 0;
 
+  /// True when this job is running in the background service after the app was reopened
+  /// (the real progress is not known then).
+  bool detached = false;
+
   /// File name of the compressed result.
   String get outName {
     final dot = name.lastIndexOf('.');
@@ -165,12 +169,26 @@ class CompressQueue extends ChangeNotifier {
     notifyListeners();
     // A video that was being compressed when the app was closed keeps compressing in the
     // background service: watch for it to finish instead of calling it cancelled.
+    // A job wrongly saved as stopped may in fact have finished: look for its output file.
+    for (final j in jobs.where((j) => j.state == JobState.cancelled && j.startedAt > 0)) {
+      final size = await NativeBridge.findOutput(j.outName, j.startedAt);
+      if (size != null && size > 0) {
+        j.state = JobState.done;
+        j.progress = 1;
+        j.outBytes = size;
+      }
+    }
+    for (final j in jobs.where((j) => j.state == JobState.running)) {
+      j.detached = true;
+    }
+    notifyListeners();
     if (jobs.any((j) => j.state == JobState.running)) _monitorDetached();
   }
 
   Timer? _monitor;
   bool _checking = false;
   final Map<String, int> _lastSize = <String, int>{};
+  final Map<String, int> _misses = <String, int>{};
 
   void _monitorDetached() {
     if (_monitor != null) return;
@@ -194,8 +212,16 @@ class CompressQueue extends ChangeNotifier {
           j.outBytes = size;
           j.targetMissed = false;
         } else if (!alive) {
-          j.state = JobState.cancelled;
+          // The file can take a moment to show up: only give up after ~1.5 minutes of nothing.
+          final m = (_misses[j.path] ?? 0) + 1;
+          _misses[j.path] = m;
+          if (m >= 30) {
+            j.state = JobState.cancelled;
+          } else {
+            waiting = true;
+          }
         } else {
+          _misses[j.path] = 0;
           _lastSize[j.path] = size ?? 0;
           waiting = true;
         }

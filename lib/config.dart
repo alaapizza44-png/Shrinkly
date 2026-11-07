@@ -6,6 +6,14 @@ class AdConfig {
   static const String _banner = String.fromEnvironment('ADMOB_BANNER_ID');
   static const String _interstitial = String.fromEnvironment('ADMOB_INTERSTITIAL_ID');
 
+  static const String _rewarded = String.fromEnvironment('ADMOB_REWARDED_ID');
+
+  static String get rewardedId =>
+      _rewarded.isNotEmpty ? _rewarded : 'ca-app-pub-3940256099942544/5224354917';
+
+  /// How long the watermark stays off after watching a rewarded ad.
+  static const int watermarkFreeHours = 24;
+
   static String get bannerId =>
       _banner.isNotEmpty ? _banner : 'ca-app-pub-3940256099942544/6300978111';
 

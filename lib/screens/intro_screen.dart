@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../l10n.dart';
 import '../services/settings.dart';
 import '../theme.dart';
+import 'offline_gate.dart';
 import 'shell_screen.dart';
 
 /// Animated splash, then (first launch only) a short onboarding, then the app.
@@ -40,7 +41,7 @@ class _IntroGateState extends State<IntroGate> {
           ? const _Splash(key: ValueKey<int>(0))
           : (_onboarding
               ? _Onboarding(key: const ValueKey<int>(1), onDone: _finish)
-              : const ShellScreen(key: ValueKey<int>(2))),
+              : const OfflineGate(key: ValueKey<int>(2), child: ShellScreen())),
     );
   }
 }

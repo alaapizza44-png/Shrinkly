@@ -431,8 +431,10 @@ class MainActivity : FlutterActivity() {
     private fun findOutput(name: String, sinceMs: Long): Long? {
         return try {
             val proj = arrayOf(MediaStore.Video.Media.SIZE)
-            val sel = "${MediaStore.Video.Media.DISPLAY_NAME}=? AND ${MediaStore.Video.Media.DATE_ADDED}>=?"
-            val args = arrayOf(name, (sinceMs / 1000L - 5L).toString())
+            // The system may rename a clashing file ("x_shrunk (1).mp4"), so match on the base name.
+            val base = name.substringBeforeLast('.')
+            val sel = "${MediaStore.Video.Media.DISPLAY_NAME} LIKE ? AND ${MediaStore.Video.Media.DATE_ADDED}>=?"
+            val args = arrayOf("$base%", (sinceMs / 1000L - 5L).toString())
             contentResolver.query(
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI, proj, sel, args,
                 "${MediaStore.Video.Media.DATE_ADDED} DESC"

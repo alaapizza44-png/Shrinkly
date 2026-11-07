@@ -22,7 +22,7 @@ free on Google Play before publishing, and change it in `tool/patch_android.py` 
 
 ## Ads (AdMob)
 By default Google's TEST ads are used. For real ads create banner + interstitial units in AdMob and add the repository secrets
-`ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID` (Settings -> Secrets and variables -> Actions).
+`ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID`, `ADMOB_REWARDED_ID` (Settings -> Secrets and variables -> Actions).
 
 ## Signing and privacy policy
 Same steps as in the SnappyDown README: run "Create signing key (run once)", add `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,

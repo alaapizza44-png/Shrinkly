@@ -339,14 +339,14 @@ class _JobTile extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
-                value: j.progress <= 0 ? null : j.progress,
+                value: (j.detached || j.progress <= 0) ? null : j.progress,
                 minHeight: 8,
                 color: AppTheme.mint,
                 backgroundColor: cs.primary.withValues(alpha: 0.12),
               ),
             ),
             const SizedBox(height: 4),
-            Text('${(j.progress * 100).round()}%',
+            Text(j.detached ? context.tr('bg_running') : '${(j.progress * 100).round()}%',
                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
           ],
         );

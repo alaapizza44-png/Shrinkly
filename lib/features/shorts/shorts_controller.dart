@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import '../../services/native_bridge.dart';
+import '../../services/settings.dart';
 import 'text_overlay.dart';
 
 enum ShortsPhase { idle, exporting, done, error }
@@ -116,6 +117,9 @@ class ShortsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Rebuild listeners (e.g. after the watermark setting changed).
+  void refresh() => notifyListeners();
+
   void setPan(double v) {
     pan = v.clamp(0.0, 1.0).toDouble();
     notifyListeners();
@@ -204,7 +208,8 @@ class ShortsController extends ChangeNotifier {
       notifyListeners();
     });
     try {
-      overlay = await TextOverlay.render(text, outWidth, outHeight, textX, textY, textSize);
+      overlay = await TextOverlay.render(text, outWidth, outHeight, textX, textY, textSize,
+          watermark: !SettingsController.instance.watermarkFree);
       final partMs = partSeconds <= 0 ? selectedMs : partSeconds * 1000;
       final stamp = DateTime.now().millisecondsSinceEpoch;
       for (var i = 0; i < starts.length; i++) {

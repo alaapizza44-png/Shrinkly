@@ -17,6 +17,28 @@ class TextOverlay {
   /// Default text size as a fraction of the frame width.
   static const double defaultSize = 0.062;
 
+  /// Faint app-name watermark in the middle of the frame (removed after a rewarded ad).
+  static void paintWatermark(Canvas canvas, Size size) {
+    final fontSize = size.width * 0.085;
+    final painter = TextPainter(
+      text: TextSpan(
+        text: 'Shorts Maker',
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.30),
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          letterSpacing: fontSize * 0.12,
+          shadows: const <Shadow>[
+            Shadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 1)),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout(maxWidth: size.width * 0.94);
+    painter.paint(canvas, Offset((size.width - painter.width) / 2, (size.height - painter.height) / 2));
+  }
+
   /// Paints the caption centred at ([cx], [cy]) (fractions of [size]) with a font size of
   /// [factor] x width. Does nothing for empty text.
   static void paint(Canvas canvas, Size size, String text, double cx, double cy, double factor) {
@@ -60,11 +82,14 @@ class TextOverlay {
   /// Returns the path of a transparent PNG with exactly the size of the output video, or null
   /// if [text] is empty.
   static Future<String?> render(
-      String text, int width, int height, double cx, double cy, double factor) async {
-    if (text.trim().isEmpty) return null;
+      String text, int width, int height, double cx, double cy, double factor,
+      {bool watermark = false}) async {
+    if (text.trim().isEmpty && !watermark) return null;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()));
-    paint(canvas, Size(width.toDouble(), height.toDouble()), text, cx, cy, factor);
+    final sz = Size(width.toDouble(), height.toDouble());
+    if (watermark) paintWatermark(canvas, sz);
+    paint(canvas, sz, text, cx, cy, factor);
     final image = await recorder.endRecording().toImage(width, height);
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     if (data == null) return null;

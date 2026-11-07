@@ -17,6 +17,11 @@ class SettingsController extends ChangeNotifier {
 
   bool onboarded = false;
 
+  /// Until when (ms since epoch) the watermark is switched off after a rewarded ad.
+  int watermarkFreeUntil = 0;
+
+  bool get watermarkFree => DateTime.now().millisecondsSinceEpoch < watermarkFreeUntil;
+
   /// null = follow the device language.
   Locale? get locale => lang == 'system' ? null : Locale(lang);
 
@@ -28,6 +33,7 @@ class SettingsController extends ChangeNotifier {
     final l = p.getString('lang') ?? 'system';
     lang = (l == 'en' || l == 'ar') ? l : 'system';
     onboarded = p.getBool('onboarded') ?? false;
+    watermarkFreeUntil = p.getInt('wmUntil') ?? 0;
     targetPercent = (p.getInt('targetPercent') ?? 0).clamp(0, 90).toInt();
   }
 
@@ -41,6 +47,11 @@ class SettingsController extends ChangeNotifier {
     lang = v;
     notifyListeners();
     await _p?.setString('lang', v);
+  }
+
+  Future<void> grantWatermarkFree(int hours) async {
+    watermarkFreeUntil = DateTime.now().add(Duration(hours: hours)).millisecondsSinceEpoch;
+    await _p?.setInt('wmUntil', watermarkFreeUntil);
   }
 
   Future<void> setOnboarded() async {

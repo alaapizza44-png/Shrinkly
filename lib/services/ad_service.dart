@@ -20,6 +20,8 @@ class AdService {
   bool _ready = false;
   InterstitialAd? _interstitial;
   bool _loadingInterstitial = false;
+  RewardedAd? _rewarded;
+  bool _loadingRewarded = false;
   int _jobsFinished = 0;
   DateTime _lastShown = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -39,6 +41,7 @@ class AdService {
       _ready = true;
       readyNotifier.value = true;
       _loadInterstitial();
+      _loadRewarded();
     } catch (e) {
       debugPrint('AdService.init failed: $e');
     }
@@ -98,6 +101,58 @@ class AdService {
         },
       ),
     );
+  }
+
+  void _loadRewarded() {
+    if (!_ready || _loadingRewarded || _rewarded != null) return;
+    _loadingRewarded = true;
+    RewardedAd.load(
+      adUnitId: AdConfig.rewardedId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _rewarded = ad;
+          _loadingRewarded = false;
+        },
+        onAdFailedToLoad: (err) {
+          _loadingRewarded = false;
+          debugPrint('Rewarded failed: ${err.message}');
+        },
+      ),
+    );
+  }
+
+  /// Shows a rewarded ad. Completes with true only if the user watched it and earned the reward.
+  /// Completes with false when no ad is available (the caller must NOT grant the reward then).
+  Future<bool> showRewarded() async {
+    if (!_ready) return false;
+    var ad = _rewarded;
+    if (ad == null) {
+      _loadRewarded();
+      // Give a just-started load a few seconds to finish.
+      for (var i = 0; i < 8 && _rewarded == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      ad = _rewarded;
+      if (ad == null) return false;
+    }
+    _rewarded = null;
+    final done = Completer<bool>();
+    var earned = false;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (a) {
+        a.dispose();
+        _loadRewarded();
+        if (!done.isCompleted) done.complete(earned);
+      },
+      onAdFailedToShowFullScreenContent: (a, err) {
+        a.dispose();
+        _loadRewarded();
+        if (!done.isCompleted) done.complete(false);
+      },
+    );
+    await ad.show(onUserEarnedReward: (_, __) => earned = true);
+    return done.future;
   }
 
   /// Call when a compression batch has finished successfully.

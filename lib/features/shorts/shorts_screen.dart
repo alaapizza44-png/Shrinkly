@@ -4,9 +4,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../config.dart';
 import '../../l10n.dart';
 import '../../screens/settings_screen.dart';
+import '../../services/ad_service.dart';
 import '../../services/native_bridge.dart';
+import '../../services/settings.dart';
 import '../../theme.dart';
 import 'shorts_controller.dart';
 import 'text_overlay.dart';
@@ -110,6 +113,23 @@ class _ShortsScreenState extends State<ShortsScreen> {
     );
     ctrl.dispose();
     if (r != null) c.setText(r);
+  }
+
+  bool _adBusy = false;
+
+  /// Watch a rewarded ad to switch the watermark off for a day.
+  Future<void> _removeWatermark(BuildContext context, ShortsController c) async {
+    if (_adBusy) return;
+    setState(() => _adBusy = true);
+    final ok = await AdService.instance.showRewarded();
+    if (ok) await SettingsController.instance.grantWatermarkFree(AdConfig.watermarkFreeHours);
+    if (!mounted) return;
+    setState(() => _adBusy = false);
+    c.refresh();
+    if (!ok) {
+      ScaffoldMessenger.of(this.context)
+          .showSnackBar(SnackBar(content: Text(L.t('wm_unavailable'))));
+    }
   }
 
   Future<void> _togglePlay(ShortsController c) async {
@@ -300,7 +320,8 @@ class _ShortsScreenState extends State<ShortsScreen> {
                 children: <Widget>[
                   picture,
                   CustomPaint(
-                    painter: _CaptionPainter(c.text, c.textX, c.textY, c.textSize),
+                    painter: _CaptionPainter(
+                        c.text, c.textX, c.textY, c.textSize, !SettingsController.instance.watermarkFree),
                   ),
                 ],
               ),
@@ -369,6 +390,28 @@ class _ShortsScreenState extends State<ShortsScreen> {
               ],
             ),
           ),
+        Center(
+          child: SettingsController.instance.watermarkFree
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(Icons.check_circle_rounded, color: AppTheme.mint, size: 18),
+                      const SizedBox(width: 6),
+                      Text(context.tr('wm_off'),
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
+                    ],
+                  ),
+                )
+              : TextButton.icon(
+                  onPressed: (busy || _adBusy) ? null : () => _removeWatermark(context, c),
+                  icon: _adBusy
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.ondemand_video_rounded, size: 18),
+                  label: Text(context.tr('wm_remove')),
+                ),
+        ),
         if (c.text.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -593,19 +636,23 @@ class _Section extends StatelessWidget {
 }
 
 class _CaptionPainter extends CustomPainter {
-  _CaptionPainter(this.text, this.x, this.y, this.factor);
+  _CaptionPainter(this.text, this.x, this.y, this.factor, this.watermark);
 
   final String text;
   final double x;
   final double y;
   final double factor;
+  final bool watermark;
 
   @override
-  void paint(Canvas canvas, Size size) => TextOverlay.paint(canvas, size, text, x, y, factor);
+  void paint(Canvas canvas, Size size) {
+    if (watermark) TextOverlay.paintWatermark(canvas, size);
+    TextOverlay.paint(canvas, size, text, x, y, factor);
+  }
 
   @override
   bool shouldRepaint(_CaptionPainter old) =>
-      old.text != text || old.x != x || old.y != y || old.factor != factor;
+      old.text != text || old.x != x || old.y != y || old.factor != factor || old.watermark != watermark;
 }
 
 Widget _smallChip(String label, bool selected, VoidCallback? onTap) {
