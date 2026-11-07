@@ -116,8 +116,17 @@ class CompressQueue extends ChangeNotifier {
 
   final List<Job> jobs = <Job>[];
 
-  /// Target size in MB, or null for "auto" (balanced quality).
-  int? targetMb = 25;
+  /// Custom target as a percentage of each original file (e.g. 40 = keep 40% of the size),
+  /// or null for "auto" (balanced quality).
+  int? percent;
+
+  /// Target size in MB for [j] under the current setting; null in auto mode.
+  int? targetFor(Job j) {
+    final p = percent;
+    if (p == null || j.originalBytes <= 0) return null;
+    final mb = (j.originalBytes * p / 100 / (1024 * 1024)).round();
+    return mb < 1 ? 1 : mb;
+  }
 
   bool running = false;
   bool _cancel = false;
@@ -218,8 +227,8 @@ class CompressQueue extends ChangeNotifier {
 
   bool get anyDone => jobs.any((j) => j.state == JobState.done);
 
-  void setTarget(int? mb) {
-    targetMb = mb;
+  void setTarget(int? pct) {
+    percent = pct;
     notifyListeners();
   }
 
@@ -331,7 +340,7 @@ class CompressQueue extends ChangeNotifier {
       if (_cancel) break;
       if (!j.pending) continue;
 
-      final t = targetMb;
+      final t = targetFor(j);
       if (t != null && j.originalBytes > 0 && j.originalBytes <= t * 1024 * 1024) {
         j.state = JobState.skipped;
         notifyListeners();

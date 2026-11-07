@@ -13,8 +13,8 @@ import 'theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SettingsController.instance.load();
-  CompressQueue.instance.targetMb =
-      SettingsController.instance.targetMb == 0 ? null : SettingsController.instance.targetMb;
+  CompressQueue.instance.percent =
+      SettingsController.instance.targetPercent == 0 ? null : SettingsController.instance.targetPercent;
   // Restore the list (e.g. after the app was closed while compressing in the background).
   await CompressQueue.instance.restore();
   runApp(const ShrinklyApp());

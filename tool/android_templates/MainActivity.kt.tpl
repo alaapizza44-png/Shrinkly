@@ -149,7 +149,11 @@ class MainActivity : FlutterActivity() {
         val width = call.argument<Number>("width")?.toInt() ?: 720
         val height = call.argument<Number>("height")?.toInt() ?: 1280
         val bitrate = call.argument<Number>("bitrate")?.toInt() ?: 4_000_000
-        val fill = call.argument<Boolean>("fill") ?: true
+        // Crop window as fractions of the (upright) source picture, 0..1 from the top-left.
+        val cropL = call.argument<Number>("cl")?.toFloat() ?: 0f
+        val cropT = call.argument<Number>("ct")?.toFloat() ?: 0f
+        val cropR = call.argument<Number>("cr")?.toFloat() ?: 1f
+        val cropB = call.argument<Number>("cb")?.toFloat() ?: 1f
         val overlayPath = call.argument<String>("overlay")
 
         pending = result
@@ -164,14 +168,19 @@ class MainActivity : FlutterActivity() {
                 .build()
 
             val effects = ArrayList<Effect>()
-            // Fill = scale and crop (centre) to exactly 9:16; Fit = whole picture with black bars.
-            effects.add(
-                Presentation.createForWidthAndHeight(
-                    width,
-                    height,
-                    if (fill) Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP else Presentation.LAYOUT_SCALE_TO_FIT
+            // 1) cut out the 9:16 window the user chose (normalised device coordinates: -1..1,
+            //    y grows upwards), 2) scale it to the output size (never larger than the source).
+            if (cropL > 0.001f || cropT > 0.001f || cropR < 0.999f || cropB < 0.999f) {
+                effects.add(
+                    androidx.media3.effect.Crop(
+                        -1f + 2f * cropL,
+                        -1f + 2f * cropR,
+                        1f - 2f * cropB,
+                        1f - 2f * cropT
+                    )
                 )
-            )
+            }
+            effects.add(Presentation.createForWidthAndHeight(width, height, Presentation.LAYOUT_SCALE_TO_FIT))
             if (overlayPath != null) {
                 val bmp = BitmapFactory.decodeFile(overlayPath)
                 if (bmp != null) {

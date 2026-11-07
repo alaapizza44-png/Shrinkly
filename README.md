@@ -6,10 +6,11 @@ to the Movies folder. English + Arabic (follows the device language). The app na
 free on Google Play before publishing, and change it in `tool/patch_android.py` (`APP_LABEL`), `lib/` and the workflows.
 
 ## Tabs
-* **Shorts** (main): pick a long video, choose the part (start / end), the picture (Fill = crop to 9:16, Fit = whole picture with
-  black bars), clip length (one clip, or 30 / 60 / 90 s clips), quality (720p / 480p / 360p) and an optional caption. Exports with
-  Android's official Media3 Transformer (GPU based) to Movies/Shrinkly. The caption is drawn by Flutter as an image, so Arabic
-  works. Not included yet: blurred background mode (planned next).
+* **Shorts** (main): pick a long video and scrub it live in a 9:16 preview to find the exact shot (move the start / end handles and
+  the preview jumps there). Slide the vertical frame over the picture, drag a caption anywhere (and resize it), choose the clip length
+  (one clip, or 30 / 60 / 90 s clips) and quality (Auto / 720p / 480p / 360p; the picture is never enlarged beyond the source's real
+  pixels). Fill-screen only. Exports with Android's official Media3 Transformer (GPU based) to Movies/Shrinkly. The caption is drawn
+  by Flutter as an image, so Arabic works. Not included yet: blurred background mode.
 * **Compress**: shrink a video to a chosen size (see below).
 
 ## Build the APK without Android Studio

@@ -229,54 +229,15 @@ class _TargetCard extends StatelessWidget {
 
   final bool enabled;
 
-  static const List<int> _presets = <int>[10, 25, 50, 100];
-
-  Future<void> _custom(BuildContext context) async {
-    final ctrl = TextEditingController();
-    final v = await showDialog<int>(
-      context: context,
-      builder: (ctx) {
-        String? err;
-        return StatefulBuilder(
-          builder: (ctx, setState) => AlertDialog(
-            title: Text(ctx.tr('custom_title')),
-            content: TextField(
-              controller: ctrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(hintText: ctx.tr('custom_hint'), errorText: err),
-            ),
-            actions: <Widget>[
-              TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ctx.tr('cancel'))),
-              FilledButton(
-                onPressed: () {
-                  final n = int.tryParse(ctrl.text.trim());
-                  if (n == null || n < 1 || n > 5000) {
-                    setState(() => err = ctx.tr('custom_err'));
-                    return;
-                  }
-                  Navigator.pop(ctx, n);
-                },
-                child: Text(ctx.tr('ok')),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-    if (v != null) _set(v);
-  }
-
-  void _set(int? mb) {
-    CompressQueue.instance.setTarget(mb);
-    SettingsController.instance.setTargetMb(mb ?? 0);
+  void _set(int? pct) {
+    CompressQueue.instance.setTarget(pct);
+    SettingsController.instance.setTargetPercent(pct ?? 0);
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final t = CompressQueue.instance.targetMb;
-    final isCustom = t != null && !_presets.contains(t);
+    final p = CompressQueue.instance.percent;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -298,24 +259,34 @@ class _TargetCard extends StatelessWidget {
               children: <Widget>[
                 ChoiceChip(
                   label: Text(context.tr('target_auto')),
-                  selected: t == null,
+                  selected: p == null,
                   onSelected: enabled ? (_) => _set(null) : null,
                 ),
-                for (final p in _presets)
-                  ChoiceChip(
-                    label: Text(context.tr('mb_n', <String, String>{'n': '$p'})),
-                    selected: t == p,
-                    onSelected: enabled ? (_) => _set(p) : null,
-                  ),
                 ChoiceChip(
-                  label: Text(isCustom
-                      ? context.tr('mb_n', <String, String>{'n': '$t'})
-                      : context.tr('target_custom')),
-                  selected: isCustom,
-                  onSelected: enabled ? (_) => _custom(context) : null,
+                  label: Text(context.tr('target_custom')),
+                  selected: p != null,
+                  onSelected: enabled ? (_) => _set(p ?? 40) : null,
                 ),
               ],
             ),
+            if (p == null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(context.tr('target_auto_sub'),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
+              )
+            else ...<Widget>[
+              Slider(
+                value: p.toDouble(),
+                min: 10,
+                max: 90,
+                divisions: 16,
+                label: '$p%',
+                onChanged: enabled ? (v) => _set(v.round()) : null,
+              ),
+              Text(context.tr('target_pct_sub', <String, String>{'n': '$p'}),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
+            ],
           ],
         ),
       ),
@@ -416,7 +387,7 @@ class _JobTile extends StatelessWidget {
     }
 
     final info = j.info;
-    final t = CompressQueue.instance.targetMb;
+    final t = CompressQueue.instance.targetFor(j);
     final warn = t != null && j.state == JobState.waiting && j.lowQuality(t) && info != null;
 
     Widget thumb = ClipRRect(

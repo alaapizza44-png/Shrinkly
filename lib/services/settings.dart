@@ -12,8 +12,8 @@ class SettingsController extends ChangeNotifier {
   /// 'system' | 'en' | 'ar'
   String lang = 'system';
 
-  /// Last chosen target size in MB (0 = auto).
-  int targetMb = 25;
+  /// Last chosen custom compression as a percentage of the original (0 = auto).
+  int targetPercent = 0;
 
   /// null = follow the device language.
   Locale? get locale => lang == 'system' ? null : Locale(lang);
@@ -25,7 +25,7 @@ class SettingsController extends ChangeNotifier {
     themeMode = ThemeMode.values[t.clamp(0, ThemeMode.values.length - 1).toInt()];
     final l = p.getString('lang') ?? 'system';
     lang = (l == 'en' || l == 'ar') ? l : 'system';
-    targetMb = (p.getInt('targetMb') ?? 25).clamp(0, 5000).toInt();
+    targetPercent = (p.getInt('targetPercent') ?? 0).clamp(0, 90).toInt();
   }
 
   Future<void> setThemeMode(ThemeMode m) async {
@@ -40,8 +40,8 @@ class SettingsController extends ChangeNotifier {
     await _p?.setString('lang', v);
   }
 
-  Future<void> setTargetMb(int v) async {
-    targetMb = v.clamp(0, 5000).toInt();
-    await _p?.setInt('targetMb', targetMb);
+  Future<void> setTargetPercent(int v) async {
+    targetPercent = v.clamp(0, 90).toInt();
+    await _p?.setInt('targetPercent', targetPercent);
   }
 }

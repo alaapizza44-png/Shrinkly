@@ -1,4 +1,8 @@
+import 'dart:io';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../l10n.dart';
 import '../../screens/settings_screen.dart';
@@ -6,9 +10,10 @@ import '../../services/native_bridge.dart';
 import '../../theme.dart';
 import '../../widgets/ad_widgets.dart';
 import 'shorts_controller.dart';
+import 'text_overlay.dart';
 
-/// The Shorts tab: pick a long video, choose the part, the picture mode, an optional caption,
-/// and export one or many vertical 9:16 clips.
+/// The Shorts tab: pick a long video, scrub it live to choose the shot, slide the 9:16 frame,
+/// drag a caption anywhere, and export one or many vertical clips.
 class ShortsScreen extends StatefulWidget {
   const ShortsScreen({super.key});
 
@@ -25,10 +30,81 @@ class _ShortsScreenState extends State<ShortsScreen> {
     _text.text = ShortsController.instance.text;
   }
 
+  VideoPlayerController? _vp;
+  String? _vpPath;
+  int? _pendingSeek;
+  bool _seeking = false;
+
   @override
   void dispose() {
+    _vp?.dispose();
     _text.dispose();
     super.dispose();
+  }
+
+  /// Opens the chosen video in the live preview player (once per picked file).
+  void _ensureVideo(ShortsController c) {
+    final path = c.path;
+    if (path == _vpPath) return;
+    _vpPath = path;
+    final old = _vp;
+    _vp = null;
+    old?.dispose();
+    if (path == null) return;
+    final vp = VideoPlayerController.file(File(path));
+    _vp = vp;
+    vp.initialize().then((_) {
+      if (!mounted || _vp != vp) return;
+      vp.setLooping(false);
+      vp.addListener(_tick);
+      vp.seekTo(Duration(milliseconds: ShortsController.instance.startMs));
+      setState(() {});
+    }).catchError((Object e) {
+      debugPrint('preview failed: $e');
+    });
+  }
+
+  /// Keeps playback inside the chosen part.
+  void _tick() {
+    final vp = _vp;
+    if (vp == null || !vp.value.isInitialized) return;
+    final c = ShortsController.instance;
+    if (vp.value.isPlaying && c.endMs > 0 && vp.value.position.inMilliseconds >= c.endMs) {
+      vp.pause();
+      vp.seekTo(Duration(milliseconds: c.startMs));
+    }
+  }
+
+  /// Live scrubbing: only the newest requested position is kept while a seek is running.
+  Future<void> _seek(int ms) async {
+    final vp = _vp;
+    if (vp == null || !vp.value.isInitialized) return;
+    _pendingSeek = ms;
+    if (_seeking) return;
+    _seeking = true;
+    try {
+      while (_pendingSeek != null) {
+        final t = _pendingSeek!;
+        _pendingSeek = null;
+        await vp.seekTo(Duration(milliseconds: t));
+      }
+    } finally {
+      _seeking = false;
+    }
+  }
+
+  Future<void> _togglePlay(ShortsController c) async {
+    final vp = _vp;
+    if (vp == null || !vp.value.isInitialized) return;
+    if (vp.value.isPlaying) {
+      await vp.pause();
+      return;
+    }
+    final pos = vp.value.position.inMilliseconds;
+    if (pos < c.startMs || pos >= c.endMs - 200) {
+      await vp.seekTo(Duration(milliseconds: c.startMs));
+    }
+    await vp.play();
   }
 
   static String _clock(int ms) {
@@ -133,61 +209,121 @@ class _ShortsScreenState extends State<ShortsScreen> {
 
   // ------------------------------------------------------------ editor
 
+  Widget _preview(BuildContext context, ShortsController c) {
+    final cs = Theme.of(context).colorScheme;
+    final vp = _vp;
+    final ready = vp != null && vp.value.isInitialized;
+    final screenH = MediaQuery.of(context).size.height;
+    return LayoutBuilder(
+      builder: (context, box) {
+        final h = math.min(box.maxWidth * 16 / 9, screenH * 0.52);
+        final w = h * 9 / 16;
+        final align = c.panHorizontal
+            ? Alignment(c.pan * 2 - 1, 0)
+            : Alignment(0, c.pan * 2 - 1);
+        Widget picture;
+        if (ready) {
+          picture = FittedBox(
+            fit: BoxFit.cover,
+            alignment: align,
+            clipBehavior: Clip.hardEdge,
+            child: SizedBox(
+              width: vp.value.size.width,
+              height: vp.value.size.height,
+              child: VideoPlayer(vp),
+            ),
+          );
+        } else if (c.thumb != null) {
+          picture = Image.memory(c.thumb!, fit: BoxFit.cover, alignment: align, gaplessPlayback: true);
+        } else {
+          picture = const Center(child: CircularProgressIndicator());
+        }
+        return Center(
+          child: Container(
+            width: w,
+            height: h,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanUpdate: c.text.trim().isEmpty || c.exporting
+                  ? null
+                  : (d) => c.setTextPos(c.textX + d.delta.dx / w, c.textY + d.delta.dy / h),
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  picture,
+                  CustomPaint(
+                    painter: _CaptionPainter(c.text, c.textX, c.textY, c.textSize),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _editor(BuildContext context, ShortsController c) {
+    _ensureVideo(c);
     final cs = Theme.of(context).colorScheme;
     final busy = c.exporting;
     final dur = c.durationMs;
     final loadingInfo = c.info == null;
+    final canPan = c.cropWFrac < 0.999 || c.cropHFrac < 0.999;
+    final vp = _vp;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       children: <Widget>[
-        // preview + name
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
+        // file name + change
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                c.info == null
+                    ? c.name
+                    : '${c.name}\n${c.info!.durationLabel}  ·  ${c.info!.resolutionLabel}',
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5, height: 1.35),
+              ),
+            ),
+            TextButton(
+              onPressed: busy ? null : c.pick,
+              child: Text(context.tr('change_video')),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // live preview (9:16 window)
+        _preview(context, c),
+        const SizedBox(height: 8),
+        if (vp != null)
+          ValueListenableBuilder<VideoPlayerValue>(
+            valueListenable: vp,
+            builder: (context, v, _) => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 112,
-                    height: 68,
-                    child: c.thumb != null
-                        ? Image.memory(c.thumb!, fit: BoxFit.cover, gaplessPlayback: true)
-                        : Container(
-                            color: cs.primary.withValues(alpha: 0.12),
-                            child: Icon(Icons.movie_rounded, color: cs.primary),
-                          ),
-                  ),
+                IconButton.filledTonal(
+                  onPressed: (busy || !v.isInitialized) ? null : () => _togglePlay(c),
+                  icon: Icon(v.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
                 ),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(c.name, maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      if (c.info != null)
-                        Text(
-                          '${c.info!.durationLabel}  ·  ${c.info!.resolutionLabel}',
-                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5),
-                        ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: busy ? null : c.pick,
-                  child: Text(context.tr('change_video')),
-                ),
+                Text(_clock(v.position.inMilliseconds),
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
               ],
             ),
           ),
-        ),
         const SizedBox(height: 12),
 
-        // trim
+        // trim (live: the preview jumps to the handle you move)
         _Section(
           icon: Icons.content_cut_rounded,
           title: context.tr('trim_title'),
@@ -206,7 +342,15 @@ class _ShortsScreenState extends State<ShortsScreen> {
                       ),
                       min: 0,
                       max: dur.toDouble(),
-                      onChanged: busy ? null : (v) => c.setRange(v.start.round(), v.end.round()),
+                      onChanged: busy
+                          ? null
+                          : (v) {
+                              final startMoved = (v.start.round() - c.startMs).abs() >=
+                                  (v.end.round() - c.endMs).abs();
+                              _vp?.pause();
+                              c.setRange(v.start.round(), v.end.round());
+                              _seek(startMoved ? v.start.round() : v.end.round());
+                            },
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -216,6 +360,30 @@ class _ShortsScreenState extends State<ShortsScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      children: <Widget>[
+                        OutlinedButton(
+                          onPressed: (busy || vp == null)
+                              ? null
+                              : () {
+                                  final t = vp.value.position.inMilliseconds;
+                                  c.setRange(math.min(t, c.endMs - 1000).clamp(0, dur).toInt(), c.endMs);
+                                },
+                          child: Text(context.tr('set_start_here')),
+                        ),
+                        OutlinedButton(
+                          onPressed: (busy || vp == null)
+                              ? null
+                              : () {
+                                  final t = vp.value.position.inMilliseconds;
+                                  c.setRange(c.startMs, math.max(t, c.startMs + 1000).clamp(0, dur).toInt());
+                                },
+                          child: Text(context.tr('set_end_here')),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
                     Text(
                       context.tr('selected_len', <String, String>{'t': _clock(c.selectedMs)}),
                       style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5),
@@ -225,32 +393,19 @@ class _ShortsScreenState extends State<ShortsScreen> {
         ),
         const SizedBox(height: 12),
 
-        // picture mode
-        _Section(
-          icon: Icons.crop_portrait_rounded,
-          title: context.tr('mode_title'),
-          child: SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<ShortsMode>(
-              segments: <ButtonSegment<ShortsMode>>[
-                ButtonSegment<ShortsMode>(
-                  value: ShortsMode.fill,
-                  icon: const Icon(Icons.fullscreen_rounded),
-                  label: Text(context.tr('mode_fill')),
-                ),
-                ButtonSegment<ShortsMode>(
-                  value: ShortsMode.fit,
-                  icon: const Icon(Icons.fit_screen_rounded),
-                  label: Text(context.tr('mode_fit')),
-                ),
-              ],
-              selected: <ShortsMode>{c.mode},
-              onSelectionChanged: busy ? null : (v) => c.setMode(v.first),
+        // frame position
+        if (canPan) ...<Widget>[
+          _Section(
+            icon: Icons.open_with_rounded,
+            title: context.tr('frame_title'),
+            child: Slider(
+              value: c.pan,
+              onChanged: busy ? null : c.setPan,
             ),
+            footer: context.tr('frame_sub'),
           ),
-          footer: context.tr(c.mode == ShortsMode.fill ? 'mode_fill_sub' : 'mode_fit_sub'),
-        ),
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
+        ],
 
         // split
         _Section(
@@ -283,6 +438,11 @@ class _ShortsScreenState extends State<ShortsScreen> {
           child: Wrap(
             spacing: 8,
             children: <Widget>[
+              ChoiceChip(
+                label: Text(context.tr('quality_auto')),
+                selected: c.quality == 0,
+                onSelected: busy ? null : (_) => c.setQuality(0),
+              ),
               for (final q in const <int>[720, 480, 360])
                 ChoiceChip(
                   label: Text('${q}p'),
@@ -291,6 +451,10 @@ class _ShortsScreenState extends State<ShortsScreen> {
                 ),
             ],
           ),
+          footer: loadingInfo
+              ? null
+              : '${context.tr('out_size', <String, String>{'w': '${c.outWidth}', 'h': '${c.outHeight}'})}'
+                  '${(c.info!.height < 720) ? '\n${context.tr('quality_note')}' : ''}',
         ),
         const SizedBox(height: 12),
 
@@ -298,13 +462,36 @@ class _ShortsScreenState extends State<ShortsScreen> {
         _Section(
           icon: Icons.title_rounded,
           title: context.tr('text_title'),
-          child: TextField(
-            controller: _text,
-            enabled: !busy,
-            maxLines: 2,
-            textInputAction: TextInputAction.done,
-            decoration: InputDecoration(hintText: context.tr('text_hint')),
-            onChanged: c.setText,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              TextField(
+                controller: _text,
+                enabled: !busy,
+                maxLines: 2,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(hintText: context.tr('text_hint')),
+                onChanged: c.setText,
+              ),
+              if (c.text.trim().isNotEmpty) ...<Widget>[
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    const Icon(Icons.format_size_rounded, size: 20),
+                    Expanded(
+                      child: Slider(
+                        value: c.textSize,
+                        min: 0.035,
+                        max: 0.12,
+                        onChanged: busy ? null : c.setTextSize,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(context.tr('text_drag_hint'),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
+              ],
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -322,7 +509,12 @@ class _ShortsScreenState extends State<ShortsScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: (c.plannedParts == 0 || loadingInfo) ? null : c.export,
+              onPressed: (c.plannedParts == 0 || loadingInfo)
+                  ? null
+                  : () {
+                      _vp?.pause();
+                      c.export();
+                    },
               icon: const Icon(Icons.movie_creation_rounded),
               label: Text(context.tr('export_btn'),
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
@@ -423,4 +615,20 @@ class _Section extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CaptionPainter extends CustomPainter {
+  _CaptionPainter(this.text, this.x, this.y, this.factor);
+
+  final String text;
+  final double x;
+  final double y;
+  final double factor;
+
+  @override
+  void paint(Canvas canvas, Size size) => TextOverlay.paint(canvas, size, text, x, y, factor);
+
+  @override
+  bool shouldRepaint(_CaptionPainter old) =>
+      old.text != text || old.x != x || old.y != y || old.factor != factor;
 }

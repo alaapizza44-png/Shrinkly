@@ -8,8 +8,6 @@ import 'package:flutter/foundation.dart';
 import '../../services/native_bridge.dart';
 import 'text_overlay.dart';
 
-enum ShortsMode { fill, fit }
-
 enum ShortsPhase { idle, exporting, done, error }
 
 /// State and logic of the Shorts tab (no widgets in here).
@@ -27,14 +25,23 @@ class ShortsController extends ChangeNotifier {
   // --- options
   int startMs = 0;
   int endMs = 0;
-  ShortsMode mode = ShortsMode.fill;
+
+  /// Where the 9:16 window sits inside the source picture, 0..1 (along the axis that has spare
+  /// picture: left-right for a normal horizontal video).
+  double pan = 0.5;
 
   /// 0 = one clip; otherwise the length of each clip in seconds.
   int partSeconds = 0;
 
-  /// Output quality: 720, 480 or 360 (the shorter side of the 9:16 picture).
-  int quality = 720;
+  /// Output quality: 0 = Auto (as sharp as the source allows), or 720 / 480 / 360 (the width of
+  /// the 9:16 picture). The picture is never enlarged beyond the real source pixels.
+  int quality = 0;
   String text = '';
+
+  /// Caption centre (fractions of the frame) and size (fraction of the frame width).
+  double textX = 0.5;
+  double textY = 0.78;
+  double textSize = TextOverlay.defaultSize;
 
   // --- progress
   ShortsPhase phase = ShortsPhase.idle;
@@ -49,9 +56,46 @@ class ShortsController extends ChangeNotifier {
   int get durationMs => info?.durationMs ?? 0;
   int get selectedMs => math.max(0, endMs - startMs);
 
-  int get outWidth => quality;
-  int get outHeight => quality == 720 ? 1280 : (quality == 480 ? 848 : 640);
-  int get bitrate => quality == 720 ? 5000000 : (quality == 480 ? 2800000 : 1600000);
+  // ---- crop window geometry (fractions of the source picture)
+  static const double _aspect = 9 / 16;
+
+  double get _srcAspect {
+    final i = info;
+    if (i == null || i.width <= 0 || i.height <= 0) return 16 / 9;
+    return i.width / i.height;
+  }
+
+  /// True when the source is wider than 9:16, so the window slides left-right.
+  bool get panHorizontal => _srcAspect >= _aspect;
+
+  /// Window size as a fraction of the source width / height.
+  double get cropWFrac => panHorizontal ? math.min(1.0, _aspect / _srcAspect) : 1.0;
+  double get cropHFrac => panHorizontal ? 1.0 : math.min(1.0, _srcAspect / _aspect);
+
+  double get cropLeft => panHorizontal ? pan * (1 - cropWFrac) : 0.0;
+  double get cropTop => panHorizontal ? 0.0 : pan * (1 - cropHFrac);
+
+  /// Real source pixels inside the window.
+  double get _cropPxH => (info?.height ?? 0) * cropHFrac;
+
+  static int _even(num v) {
+    final i = v.floor();
+    return math.max(2, i - (i % 2));
+  }
+
+  int get outHeight {
+    final want = quality == 720 ? 1280 : (quality == 480 ? 848 : (quality == 360 ? 640 : 1280));
+    final src = _cropPxH;
+    return _even(src > 0 ? math.min(want.toDouble(), src) : want);
+  }
+
+  int get outWidth => _even(outHeight * _aspect);
+
+  int get bitrate {
+    final f = (info?.fps ?? 0) <= 0 ? 30.0 : (info!.fps).clamp(24.0, 60.0).toDouble();
+    final bps = outWidth * outHeight * f * 0.11;
+    return bps.clamp(600000.0, 9000000.0).round();
+  }
 
   /// How many clips the current settings will produce.
   int get plannedParts => _starts().length;
@@ -73,8 +117,19 @@ class ShortsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setMode(ShortsMode m) {
-    mode = m;
+  void setPan(double v) {
+    pan = v.clamp(0.0, 1.0).toDouble();
+    notifyListeners();
+  }
+
+  void setTextPos(double x, double y) {
+    textX = x.clamp(0.0, 1.0).toDouble();
+    textY = y.clamp(0.0, 1.0).toDouble();
+    notifyListeners();
+  }
+
+  void setTextSize(double v) {
+    textSize = v.clamp(0.035, 0.12).toDouble();
     notifyListeners();
   }
 
@@ -90,6 +145,7 @@ class ShortsController extends ChangeNotifier {
 
   void setText(String t) {
     text = t;
+    notifyListeners();
   }
 
   Future<void> pick() async {
@@ -104,6 +160,7 @@ class ShortsController extends ChangeNotifier {
       name = p.split('/').last;
       info = null;
       thumb = null;
+      pan = 0.5;
       phase = ShortsPhase.idle;
       savedCount = 0;
       error = null;
@@ -148,7 +205,7 @@ class ShortsController extends ChangeNotifier {
       notifyListeners();
     });
     try {
-      overlay = await TextOverlay.render(text, outWidth, outHeight);
+      overlay = await TextOverlay.render(text, outWidth, outHeight, textX, textY, textSize);
       final partMs = partSeconds <= 0 ? selectedMs : partSeconds * 1000;
       final stamp = DateTime.now().millisecondsSinceEpoch;
       for (var i = 0; i < starts.length; i++) {
@@ -161,7 +218,10 @@ class ShortsController extends ChangeNotifier {
           path: p,
           startMs: s,
           endMs: math.min(endMs, s + partMs),
-          fill: mode == ShortsMode.fill,
+          cropL: cropLeft,
+          cropT: cropTop,
+          cropR: cropLeft + cropWFrac,
+          cropB: cropTop + cropHFrac,
           width: outWidth,
           height: outHeight,
           bitrate: bitrate,
