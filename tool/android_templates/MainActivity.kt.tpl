@@ -141,6 +141,26 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /** SHA-256 (hex) of the certificate(s) this app is signed with. */
+    @Suppress("DEPRECATION")
+    private fun signatures(): List<String>? {
+        return try {
+            val pm = packageManager
+            val sigs: Array<android.content.pm.Signature>? = if (Build.VERSION.SDK_INT >= 28) {
+                val info = pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                info.signingInfo?.apkContentsSigners
+            } else {
+                pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES).signatures
+            }
+            sigs?.map { sig ->
+                val d = java.security.MessageDigest.getInstance("SHA-256").digest(sig.toByteArray())
+                d.joinToString("") { b -> String.format("%02x", b) }
+            }
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
     private fun shareApp(text: String?): Boolean {
         return try {
             val i = Intent(Intent.ACTION_SEND)
@@ -306,6 +326,7 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                     "notifyDone" -> result.success(notifyDone(call.argument<String>("title"), call.argument<String>("text")))
+                    "signatures" -> result.success(signatures())
                     "shareApp" -> result.success(shareApp(call.argument<String>("text")))
                     "openStore" -> result.success(openStore())
                     "pickVideo" -> pickVideo(result)

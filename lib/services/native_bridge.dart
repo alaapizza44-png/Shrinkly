@@ -202,6 +202,17 @@ class NativeBridge {
     }
   }
 
+  /// SHA-256 hex of the app's signing certificate(s), or null if unknown.
+  static Future<List<String>?> signatures() async {
+    try {
+      final r = await _ch.invokeMethod<dynamic>('signatures');
+      if (r is! List) return null;
+      return <String>[for (final e in r) e.toString().toLowerCase()];
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<bool> shareApp(String text) async {
     try {
       return (await _ch.invokeMethod<bool>('shareApp', <String, dynamic>{'text': text})) ?? false;
