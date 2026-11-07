@@ -5,7 +5,6 @@ import '../services/compress_queue.dart';
 import '../services/native_bridge.dart';
 import '../services/settings.dart';
 import '../theme.dart';
-import '../widgets/ad_widgets.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -72,7 +71,6 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
             ),
-            const BannerAdWidget(),
           ],
         ),
       ),

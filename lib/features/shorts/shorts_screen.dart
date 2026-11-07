@@ -8,7 +8,6 @@ import '../../l10n.dart';
 import '../../screens/settings_screen.dart';
 import '../../services/native_bridge.dart';
 import '../../theme.dart';
-import '../../widgets/ad_widgets.dart';
 import 'shorts_controller.dart';
 import 'text_overlay.dart';
 
@@ -22,14 +21,7 @@ class ShortsScreen extends StatefulWidget {
 }
 
 class _ShortsScreenState extends State<ShortsScreen> {
-  final TextEditingController _text = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _text.text = ShortsController.instance.text;
-  }
-
+  double _baseSize = TextOverlay.defaultSize;
   VideoPlayerController? _vp;
   String? _vpPath;
   int? _pendingSeek;
@@ -38,7 +30,6 @@ class _ShortsScreenState extends State<ShortsScreen> {
   @override
   void dispose() {
     _vp?.dispose();
-    _text.dispose();
     super.dispose();
   }
 
@@ -91,6 +82,32 @@ class _ShortsScreenState extends State<ShortsScreen> {
     } finally {
       _seeking = false;
     }
+  }
+
+  /// Add / edit / remove the caption. The caption itself is then dragged and pinched on the preview.
+  Future<void> _editText(BuildContext context, ShortsController c) async {
+    final ctrl = TextEditingController(text: c.text);
+    final r = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ctx.tr('text_title')),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 3,
+          minLines: 1,
+          decoration: InputDecoration(hintText: ctx.tr('text_hint')),
+        ),
+        actions: <Widget>[
+          if (c.text.isNotEmpty)
+            TextButton(onPressed: () => Navigator.pop(ctx, ''), child: Text(ctx.tr('remove'))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ctx.tr('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text(ctx.tr('ok'))),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (r != null) c.setText(r);
   }
 
   Future<void> _togglePlay(ShortsController c) async {
@@ -147,7 +164,6 @@ class _ShortsScreenState extends State<ShortsScreen> {
                   },
                 ),
               ),
-              const BannerAdWidget(),
             ],
           ),
         ),
@@ -216,7 +232,7 @@ class _ShortsScreenState extends State<ShortsScreen> {
     final screenH = MediaQuery.of(context).size.height;
     return LayoutBuilder(
       builder: (context, box) {
-        final h = math.min(box.maxWidth * 16 / 9, screenH * 0.52);
+        final h = math.min(box.maxWidth * 16 / 9, screenH * 0.6);
         final w = h * 9 / 16;
         final align = c.panHorizontal
             ? Alignment(c.pan * 2 - 1, 0)
@@ -250,9 +266,14 @@ class _ShortsScreenState extends State<ShortsScreen> {
             clipBehavior: Clip.antiAlias,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onPanUpdate: c.text.trim().isEmpty || c.exporting
+              onTap: c.exporting ? null : () => _editText(context, c),
+              onScaleStart: (_) => _baseSize = c.textSize,
+              onScaleUpdate: c.text.trim().isEmpty || c.exporting
                   ? null
-                  : (d) => c.setTextPos(c.textX + d.delta.dx / w, c.textY + d.delta.dy / h),
+                  : (d) {
+                      c.setTextPos(c.textX + d.focalPointDelta.dx / w, c.textY + d.focalPointDelta.dy / h);
+                      if (d.pointerCount > 1) c.setTextSize(_baseSize * d.scale);
+                    },
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
@@ -318,8 +339,21 @@ class _ShortsScreenState extends State<ShortsScreen> {
                 const SizedBox(width: 12),
                 Text(_clock(v.position.inMilliseconds),
                     style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(width: 12),
+                TextButton.icon(
+                  onPressed: busy ? null : () => _editText(context, c),
+                  icon: const Icon(Icons.text_fields_rounded),
+                  label: Text(context.tr(c.text.isEmpty ? 'text_add' : 'text_edit')),
+                ),
               ],
             ),
+          ),
+        if (c.text.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(context.tr('text_drag_hint'),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5)),
           ),
         const SizedBox(height: 12),
 
@@ -360,29 +394,6 @@ class _ShortsScreenState extends State<ShortsScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 8,
-                      children: <Widget>[
-                        OutlinedButton(
-                          onPressed: (busy || vp == null)
-                              ? null
-                              : () {
-                                  final t = vp.value.position.inMilliseconds;
-                                  c.setRange(math.min(t, c.endMs - 1000).clamp(0, dur).toInt(), c.endMs);
-                                },
-                          child: Text(context.tr('set_start_here')),
-                        ),
-                        OutlinedButton(
-                          onPressed: (busy || vp == null)
-                              ? null
-                              : () {
-                                  final t = vp.value.position.inMilliseconds;
-                                  c.setRange(c.startMs, math.max(t, c.startMs + 1000).clamp(0, dur).toInt());
-                                },
-                          child: Text(context.tr('set_end_here')),
-                        ),
-                      ],
-                    ),
                     const SizedBox(height: 6),
                     Text(
                       context.tr('selected_len', <String, String>{'t': _clock(c.selectedMs)}),
@@ -407,94 +418,38 @@ class _ShortsScreenState extends State<ShortsScreen> {
           const SizedBox(height: 12),
         ],
 
-        // split
-        _Section(
-          icon: Icons.splitscreen_rounded,
-          title: context.tr('split_title'),
-          child: Wrap(
-            spacing: 8,
-            children: <Widget>[
-              ChoiceChip(
-                label: Text(context.tr('split_whole')),
-                selected: c.partSeconds == 0,
-                onSelected: busy ? null : (_) => c.setPartSeconds(0),
-              ),
-              for (final s in const <int>[30, 60, 90])
-                ChoiceChip(
-                  label: Text(context.tr('split_n', <String, String>{'n': '$s'})),
-                  selected: c.partSeconds == s,
-                  onSelected: busy ? null : (_) => c.setPartSeconds(s),
-                ),
-            ],
-          ),
-          footer: context.tr('split_count', <String, String>{'n': '${c.plannedParts}'}),
+        // clip length + quality: compact, small, side by side
+        _CompactRow(
+          label: context.tr('split_title'),
+          chips: <Widget>[
+            _smallChip(context.tr('split_whole'), c.partSeconds == 0, busy ? null : () => c.setPartSeconds(0)),
+            for (final s in const <int>[30, 60, 90])
+              _smallChip(context.tr('split_n', <String, String>{'n': '$s'}), c.partSeconds == s,
+                  busy ? null : () => c.setPartSeconds(s)),
+          ],
         ),
-        const SizedBox(height: 12),
-
-        // quality
-        _Section(
-          icon: Icons.high_quality_rounded,
-          title: context.tr('quality_title'),
-          child: Wrap(
-            spacing: 8,
-            children: <Widget>[
-              ChoiceChip(
-                label: Text(context.tr('quality_auto')),
-                selected: c.quality == 0,
-                onSelected: busy ? null : (_) => c.setQuality(0),
-              ),
-              for (final q in const <int>[720, 480, 360])
-                ChoiceChip(
-                  label: Text('${q}p'),
-                  selected: c.quality == q,
-                  onSelected: busy ? null : (_) => c.setQuality(q),
-                ),
-            ],
-          ),
-          footer: loadingInfo
-              ? null
-              : '${context.tr('out_size', <String, String>{'w': '${c.outWidth}', 'h': '${c.outHeight}'})}'
-                  '${(c.info!.height < 720) ? '\n${context.tr('quality_note')}' : ''}',
+        Padding(
+          padding: const EdgeInsets.only(top: 2, bottom: 6),
+          child: Text(context.tr('split_count', <String, String>{'n': '${c.plannedParts}'}),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5)),
         ),
-        const SizedBox(height: 12),
-
-        // caption
-        _Section(
-          icon: Icons.title_rounded,
-          title: context.tr('text_title'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              TextField(
-                controller: _text,
-                enabled: !busy,
-                maxLines: 2,
-                textInputAction: TextInputAction.done,
-                decoration: InputDecoration(hintText: context.tr('text_hint')),
-                onChanged: c.setText,
-              ),
-              if (c.text.trim().isNotEmpty) ...<Widget>[
-                const SizedBox(height: 8),
-                Row(
-                  children: <Widget>[
-                    const Icon(Icons.format_size_rounded, size: 20),
-                    Expanded(
-                      child: Slider(
-                        value: c.textSize,
-                        min: 0.035,
-                        max: 0.12,
-                        onChanged: busy ? null : c.setTextSize,
-                      ),
-                    ),
-                  ],
-                ),
-                Text(context.tr('text_drag_hint'),
-                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
-              ],
-            ],
-          ),
+        _CompactRow(
+          label: context.tr('quality_title'),
+          chips: <Widget>[
+            _smallChip(context.tr('quality_auto'), c.quality == 0, busy ? null : () => c.setQuality(0)),
+            _smallChip('720p', c.quality == 720, busy ? null : () => c.setQuality(720)),
+          ],
         ),
-        const SizedBox(height: 16),
+        if (!loadingInfo)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              '${context.tr('out_size', <String, String>{'w': '${c.outWidth}', 'h': '${c.outHeight}'})}'
+              '${(c.info!.height < 720) ? '\n${context.tr('quality_note')}' : ''}',
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5),
+            ),
+          ),
+        const SizedBox(height: 14),
 
         // action / progress
         if (busy)
@@ -631,4 +586,36 @@ class _CaptionPainter extends CustomPainter {
   @override
   bool shouldRepaint(_CaptionPainter old) =>
       old.text != text || old.x != x || old.y != y || old.factor != factor;
+}
+
+Widget _smallChip(String label, bool selected, VoidCallback? onTap) {
+  return ChoiceChip(
+    label: Text(label, style: const TextStyle(fontSize: 12)),
+    selected: selected,
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    padding: const EdgeInsets.symmetric(horizontal: 2),
+    onSelected: onTap == null ? null : (_) => onTap(),
+  );
+}
+
+class _CompactRow extends StatelessWidget {
+  const _CompactRow({required this.label, required this.chips});
+
+  final String label;
+  final List<Widget> chips;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 0,
+      children: <Widget>[
+        Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: cs.onSurface)),
+        ...chips,
+      ],
+    );
+  }
 }

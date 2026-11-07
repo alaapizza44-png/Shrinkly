@@ -65,7 +65,7 @@ def write_kotlin():
     print(f"[patch_android] MainActivity written for package {pkg}")
 
 
-MEDIA3 = "1.5.1"
+MEDIA3 = "1.8.0"
 
 
 def patch_dependencies():

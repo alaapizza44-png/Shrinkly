@@ -234,9 +234,9 @@ class MainActivity : FlutterActivity() {
                 .build()
             transformer = t
             t.start(edited, out.absolutePath)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             cleanupExport()
-            reply(mapOf("status" to "error", "message" to (e.message ?: "export failed")))
+            reply(mapOf("status" to "error", "message" to (e.message ?: e.javaClass.simpleName)))
         }
     }
 
