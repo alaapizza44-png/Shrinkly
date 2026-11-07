@@ -89,6 +89,7 @@ class NativeBridge {
     required int bitrate,
     required String outName,
     String? overlayPath,
+    double speed = 1.0,
   }) async {
     try {
       final r = await _ch.invokeMethod<dynamic>('exportShort', <String, dynamic>{
@@ -104,6 +105,7 @@ class NativeBridge {
         'bitrate': bitrate,
         'outName': outName,
         'overlay': overlayPath,
+        'speed': speed,
       });
       if (r is Map) {
         return ExportOutcome((r['status'] as String?) ?? 'error', r['message'] as String?);
@@ -186,6 +188,31 @@ class NativeBridge {
   static Future<bool> _bool(String m, String uri) async {
     try {
       return (await _ch.invokeMethod<bool>(m, <String, dynamic>{'uri': uri})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> notifyDone(String title, String text) async {
+    try {
+      return (await _ch.invokeMethod<bool>('notifyDone', <String, dynamic>{'title': title, 'text': text})) ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> shareApp(String text) async {
+    try {
+      return (await _ch.invokeMethod<bool>('shareApp', <String, dynamic>{'text': text})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> openStore() async {
+    try {
+      return (await _ch.invokeMethod<bool>('openStore')) ?? false;
     } catch (_) {
       return false;
     }

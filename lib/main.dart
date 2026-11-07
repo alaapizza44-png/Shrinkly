@@ -7,6 +7,7 @@ import 'l10n.dart';
 import 'screens/intro_screen.dart';
 import 'services/ad_service.dart';
 import 'services/compress_queue.dart';
+import 'services/rate_prompt.dart';
 import 'services/settings.dart';
 import 'theme.dart';
 
@@ -15,6 +16,7 @@ Future<void> main() async {
   await SettingsController.instance.load();
   CompressQueue.instance.percent =
       SettingsController.instance.targetPercent == 0 ? null : SettingsController.instance.targetPercent;
+  CompressQueue.instance.resolution = SettingsController.instance.compressRes;
   // Restore the list (e.g. after the app was closed while compressing in the background).
   await CompressQueue.instance.restore();
   runApp(const ShrinklyApp());
@@ -29,6 +31,7 @@ class ShrinklyApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: SettingsController.instance,
       builder: (context, _) => MaterialApp(
+        navigatorKey: RatePrompt.navKey,
         title: 'Shorts Maker',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),

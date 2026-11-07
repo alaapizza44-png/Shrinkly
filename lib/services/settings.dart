@@ -17,6 +17,13 @@ class SettingsController extends ChangeNotifier {
 
   bool onboarded = false;
 
+  /// Compress tab resolution: 0 = auto, or 720 / 480 / 360.
+  int compressRes = 0;
+
+  /// Rating prompt: number of finished jobs, and the count at which to ask next (-1 = never).
+  int successes = 0;
+  int rateAt = 3;
+
   /// Until when (ms since epoch) the watermark is switched off after a rewarded ad.
   int watermarkFreeUntil = 0;
 
@@ -33,6 +40,10 @@ class SettingsController extends ChangeNotifier {
     final l = p.getString('lang') ?? 'system';
     lang = (l == 'en' || l == 'ar') ? l : 'system';
     onboarded = p.getBool('onboarded') ?? false;
+    final cr = p.getInt('compressRes') ?? 0;
+    compressRes = (cr == 720 || cr == 480 || cr == 360) ? cr : 0;
+    successes = p.getInt('successes') ?? 0;
+    rateAt = p.getInt('rateAt') ?? 3;
     watermarkFreeUntil = p.getInt('wmUntil') ?? 0;
     targetPercent = (p.getInt('targetPercent') ?? 0).clamp(0, 90).toInt();
   }
@@ -52,6 +63,16 @@ class SettingsController extends ChangeNotifier {
   Future<void> grantWatermarkFree(int hours) async {
     watermarkFreeUntil = DateTime.now().add(Duration(hours: hours)).millisecondsSinceEpoch;
     await _p?.setInt('wmUntil', watermarkFreeUntil);
+  }
+
+  Future<void> saveRating() async {
+    await _p?.setInt('successes', successes);
+    await _p?.setInt('rateAt', rateAt);
+  }
+
+  Future<void> setCompressRes(int v) async {
+    compressRes = v;
+    await _p?.setInt('compressRes', v);
   }
 
   Future<void> setOnboarded() async {

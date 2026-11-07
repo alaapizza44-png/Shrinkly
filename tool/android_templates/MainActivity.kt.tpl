@@ -17,6 +17,8 @@ import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.audio.SonicAudioProcessor
+import androidx.media3.effect.SpeedChangeEffect
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.OverlayEffect
@@ -51,6 +53,17 @@ class MainActivity : FlutterActivity() {
     private var pending: MethodChannel.Result? = null
     private var pendingOverlay: Bitmap? = null
     private var tmpOut: File? = null
+    private var resumed = false
+
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+    }
+
+    override fun onPause() {
+        resumed = false
+        super.onPause()
+    }
     private var pickResult: MethodChannel.Result? = null
     private val pickCode = 4711
 
@@ -95,6 +108,65 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
         }
         r.success(mapOf("uri" to uri.toString(), "name" to name))
+    }
+
+    /** "Export finished" notification, only when the app is not on screen. */
+    private fun notifyDone(title: String?, text: String?): Boolean {
+        if (resumed) return false
+        return try {
+            val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+            if (Build.VERSION.SDK_INT >= 26) {
+                nm.createNotificationChannel(
+                    android.app.NotificationChannel("export_done", "Export", android.app.NotificationManager.IMPORTANCE_DEFAULT)
+                )
+            }
+            val open = Intent(this, MainActivity::class.java)
+            open.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val flags = if (Build.VERSION.SDK_INT >= 23)
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            else android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            val pi = android.app.PendingIntent.getActivity(this, 0, open, flags)
+            val b = if (Build.VERSION.SDK_INT >= 26) android.app.Notification.Builder(this, "export_done")
+            else android.app.Notification.Builder(this)
+            val n = b.setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle(title ?: "")
+                .setContentText(text ?: "")
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .build()
+            nm.notify(4712, n)
+            true
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    private fun shareApp(text: String?): Boolean {
+        return try {
+            val i = Intent(Intent.ACTION_SEND)
+            i.type = "text/plain"
+            i.putExtra(Intent.EXTRA_TEXT, (text ?: "") + "\nhttps://play.google.com/store/apps/details?id=" + packageName)
+            startActivity(Intent.createChooser(i, null))
+            true
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    private fun openStore(): Boolean {
+        return try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + packageName)))
+            true
+        } catch (e: Throwable) {
+            try {
+                startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + packageName))
+                )
+                true
+            } catch (e2: Throwable) {
+                false
+            }
+        }
     }
 
     /** Shorts saved by the app (Movies/Shrinkly), newest first. */
@@ -233,6 +305,9 @@ class MainActivity : FlutterActivity() {
                             }.start()
                         }
                     }
+                    "notifyDone" -> result.success(notifyDone(call.argument<String>("title"), call.argument<String>("text")))
+                    "shareApp" -> result.success(shareApp(call.argument<String>("text")))
+                    "openStore" -> result.success(openStore())
                     "pickVideo" -> pickVideo(result)
                     "listWorks" -> Thread {
                         val out = listWorks()
@@ -299,6 +374,7 @@ class MainActivity : FlutterActivity() {
         val cropR = call.argument<Number>("cr")?.toFloat() ?: 1f
         val cropB = call.argument<Number>("cb")?.toFloat() ?: 1f
         val overlayPath = call.argument<String>("overlay")
+        val speed = (call.argument<Number>("speed")?.toFloat() ?: 1f).coerceIn(0.25f, 4f)
 
         pending = result
         try {
@@ -325,6 +401,14 @@ class MainActivity : FlutterActivity() {
                 )
             }
             effects.add(Presentation.createForWidthAndHeight(width, height, Presentation.LAYOUT_SCALE_TO_FIT))
+            val audio = ArrayList<AudioProcessor>()
+            if (Math.abs(speed - 1f) > 0.01f) {
+                effects.add(SpeedChangeEffect(speed))
+                val sonic = SonicAudioProcessor()
+                sonic.setSpeed(speed)
+                sonic.setPitch(1f)
+                audio.add(sonic)
+            }
             if (overlayPath != null) {
                 val bmp = BitmapFactory.decodeFile(overlayPath)
                 if (bmp != null) {
@@ -336,7 +420,7 @@ class MainActivity : FlutterActivity() {
             }
 
             val edited = EditedMediaItem.Builder(item)
-                .setEffects(Effects(ArrayList<AudioProcessor>(), effects))
+                .setEffects(Effects(audio, effects))
                 .build()
 
             val encoder = DefaultEncoderFactory.Builder(this)

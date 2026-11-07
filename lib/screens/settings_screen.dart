@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../l10n.dart';
+import '../features/shorts/shorts_controller.dart';
 import '../services/ad_service.dart';
+import '../services/compress_queue.dart';
+import '../services/native_bridge.dart';
 import '../services/settings.dart';
 import 'privacy_screen.dart';
 
@@ -79,6 +84,26 @@ class SettingsScreen extends StatelessWidget {
                   MaterialPageRoute<void>(builder: (_) => const PrivacyScreen()),
                 ),
               ),
+              _Header(context.tr('support')),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.star_outline_rounded),
+                title: Text(context.tr('rate_app')),
+                onTap: NativeBridge.openStore,
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.share_outlined),
+                title: Text(context.tr('share_app')),
+                onTap: () => NativeBridge.shareApp(context.tr('share_text')),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.cleaning_services_outlined),
+                title: Text(context.tr('clear_cache')),
+                subtitle: Text(context.tr('clear_cache_sub')),
+                onTap: () => _clearCache(context),
+              ),
               _Header(context.tr('about')),
               Card(
                 child: Padding(
@@ -95,6 +120,34 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _clearCache(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  if (CompressQueue.instance.jobs.isNotEmpty ||
+      CompressQueue.instance.running ||
+      ShortsController.instance.exporting) {
+    messenger.showSnackBar(SnackBar(content: Text(L.t('clear_cache_busy'))));
+    return;
+  }
+  var freed = 0;
+  try {
+    await for (final e in Directory.systemTemp.list()) {
+      try {
+        if (e is File) {
+          freed += await e.length();
+          await e.delete();
+        } else if (e is Directory) {
+          await for (final f in e.list(recursive: true)) {
+            if (f is File) freed += await f.length();
+          }
+          await e.delete(recursive: true);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  messenger.showSnackBar(SnackBar(
+      content: Text(L.t('clear_cache_done', <String, String>{'s': fmtBytes(freed)}))));
 }
 
 class _Header extends StatelessWidget {

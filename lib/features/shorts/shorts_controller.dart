@@ -3,8 +3,12 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 
+import '../../l10n.dart';
+import '../../services/ad_service.dart';
 import '../../services/native_bridge.dart';
+import '../../services/rate_prompt.dart';
 import '../../services/settings.dart';
 import 'text_overlay.dart';
 
@@ -36,6 +40,9 @@ class ShortsController extends ChangeNotifier {
   /// Output quality: 0 = Auto (as sharp as the source allows), or 720 / 480 / 360 (the width of
   /// the 9:16 picture). The picture is never enlarged beyond the real source pixels.
   int quality = 0;
+
+  /// Playback speed of the clip: 0.5, 1, 1.5 or 2.
+  double speed = 1.0;
   String text = '';
 
   /// Caption centre (fractions of the frame) and size (fraction of the frame width).
@@ -55,6 +62,9 @@ class ShortsController extends ChangeNotifier {
   bool get exporting => phase == ShortsPhase.exporting;
   int get durationMs => info?.durationMs ?? 0;
   int get selectedMs => math.max(0, endMs - startMs);
+
+  /// Length of the result after the speed change.
+  int get outputMs => (selectedMs / speed).round();
 
   // ---- crop window geometry (fractions of the source picture)
   static const double _aspect = 9 / 16;
@@ -103,7 +113,7 @@ class ShortsController extends ChangeNotifier {
   List<int> _starts() {
     final total = selectedMs;
     if (total < 1000) return <int>[];
-    final partMs = partSeconds <= 0 ? total : partSeconds * 1000;
+    final partMs = partSeconds <= 0 ? total : (partSeconds * 1000 * speed).round();
     final out = <int>[];
     for (var s = startMs; s < endMs; s += partMs) {
       if (endMs - s >= 1000) out.add(s);
@@ -138,6 +148,11 @@ class ShortsController extends ChangeNotifier {
 
   void setPartSeconds(int s) {
     partSeconds = s;
+    notifyListeners();
+  }
+
+  void setSpeed(double v) {
+    speed = v;
     notifyListeners();
   }
 
@@ -192,6 +207,9 @@ class ShortsController extends ChangeNotifier {
     final starts = _starts();
     if (starts.isEmpty) return;
 
+    try {
+      await Permission.notification.request();
+    } catch (_) {}
     _cancel = false;
     phase = ShortsPhase.exporting;
     progress = 0;
@@ -210,7 +228,7 @@ class ShortsController extends ChangeNotifier {
     try {
       overlay = await TextOverlay.render(text, outWidth, outHeight, textX, textY, textSize,
           watermark: !SettingsController.instance.watermarkFree);
-      final partMs = partSeconds <= 0 ? selectedMs : partSeconds * 1000;
+      final partMs = partSeconds <= 0 ? selectedMs : (partSeconds * 1000 * speed).round();
       final stamp = DateTime.now().millisecondsSinceEpoch;
       for (var i = 0; i < starts.length; i++) {
         if (_cancel) break;
@@ -231,6 +249,7 @@ class ShortsController extends ChangeNotifier {
           bitrate: bitrate,
           outName: 'Short_${stamp}_${i + 1}.mp4',
           overlayPath: overlay,
+          speed: speed,
         );
         if (r.cancelled) break;
         if (!r.ok) {
@@ -241,6 +260,12 @@ class ShortsController extends ChangeNotifier {
         savedCount++;
       }
       phase = savedCount > 0 ? ShortsPhase.done : ShortsPhase.idle;
+      if (savedCount > 0 && !_cancel) {
+        AdService.instance.onJobFinished();
+        RatePrompt.onSuccess();
+        unawaited(NativeBridge.notifyDone(
+            L.t('export_notif_title'), L.t('export_done', <String, String>{'n': '$savedCount'})));
+      }
     } catch (e) {
       error = e.toString();
       phase = ShortsPhase.error;

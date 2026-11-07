@@ -12,6 +12,7 @@ import '../l10n.dart';
 import '../features/shorts/shorts_controller.dart';
 import 'ad_service.dart';
 import 'native_bridge.dart';
+import 'rate_prompt.dart';
 
 enum JobState { waiting, running, done, skipped, failed, cancelled }
 
@@ -41,15 +42,34 @@ class Job {
   }
 
   /// Bits per pixel per frame the plan would give (H.264 looks poor below roughly 0.04).
-  double? plannedDensity(int targetMb) {
+  double? plannedDensity(int targetMb, [int res = 0]) {
     final i = info;
     final v = plannedVideoBps(targetMb);
     if (i == null || v == null || i.width <= 0 || i.height <= 0) return null;
     final fps = i.fps > 0 ? i.fps : 30.0;
-    return v / (i.width * i.height * fps);
+    final sz = scaledSize(res);
+    final w = sz?.$1 ?? i.width;
+    final h = sz?.$2 ?? i.height;
+    return v / (w * h * fps);
   }
 
-  bool lowQuality(int targetMb) => (plannedDensity(targetMb) ?? 1) < 0.04;
+  bool lowQuality(int targetMb, [int res = 0]) => (plannedDensity(targetMb, res) ?? 1) < 0.04;
+
+  /// Output size when the shorter side is brought down to [res] (720 / 480 / 360), keeping the
+  /// aspect ratio. Null when no scaling is needed (auto, unknown size, or already small enough).
+  (int, int)? scaledSize(int res) {
+    final i = info;
+    if (res <= 0 || i == null || i.width <= 0 || i.height <= 0) return null;
+    final shorter = i.width < i.height ? i.width : i.height;
+    if (shorter <= res) return null;
+    final f = res / shorter;
+    int even(num v) {
+      final n = v.round();
+      return n - (n % 2);
+    }
+
+    return (even(i.width * f), even(i.height * f));
+  }
 
   String get name => path.split('/').last;
 
@@ -123,6 +143,14 @@ class CompressQueue extends ChangeNotifier {
   /// Custom target as a percentage of each original file (e.g. 40 = keep 40% of the size),
   /// or null for "auto" (balanced quality).
   int? percent;
+
+  /// Output resolution (shorter side): 0 = automatic, or 720 / 480 / 360.
+  int resolution = 0;
+
+  void setResolution(int r) {
+    resolution = r;
+    notifyListeners();
+  }
 
   /// Target size in MB for [j] under the current setting; null in auto mode.
   int? targetFor(Job j) {
@@ -385,17 +413,30 @@ class CompressQueue extends ChangeNotifier {
         // plugin to hit a size itself (which may encode more than once). Falls back to the
         // plugin's own target-size mode when the duration could not be read.
         final bps = t == null ? null : j.plannedVideoBps(t);
+        final res = resolution;
+        final sz = j.scaledSize(res);
+        // A chosen resolution at or above the source's own: keep the picture untouched.
+        final keepRes = res > 0 && sz == null && j.info != null;
         final Video video;
         var quality = VideoQuality.medium;
         if (t != null && bps != null) {
           video = Video(
             videoName: j.outName,
             videoBitrateInMbps: double.parse((bps / 1000000).toStringAsFixed(3)),
+            videoWidth: sz?.$1,
+            videoHeight: sz?.$2,
+            keepOriginalResolution: keepRes ? true : null,
           );
           // Very small targets look blocky at full size; a smaller picture is faster and cleaner.
-          if ((j.plannedDensity(t) ?? 1) < 0.06) quality = VideoQuality.low;
+          if (res == 0 && (j.plannedDensity(t) ?? 1) < 0.06) quality = VideoQuality.low;
         } else {
-          video = Video(videoName: j.outName, targetSizeMb: t);
+          video = Video(
+            videoName: j.outName,
+            targetSizeMb: t,
+            videoWidth: sz?.$1,
+            videoHeight: sz?.$2,
+            keepOriginalResolution: keepRes ? true : null,
+          );
         }
         final r = await lc.compressVideo(
           path: j.path,
@@ -434,6 +475,9 @@ class CompressQueue extends ChangeNotifier {
     running = false;
     notifyListeners();
     unawaited(_save());
-    if (finishedAny && !_cancel) AdService.instance.onJobFinished();
+    if (finishedAny && !_cancel) {
+      AdService.instance.onJobFinished();
+      RatePrompt.onSuccess();
+    }
   }
 }

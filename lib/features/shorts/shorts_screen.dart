@@ -139,6 +139,7 @@ class _ShortsScreenState extends State<ShortsScreen> {
       await vp.pause();
       return;
     }
+    await vp.setPlaybackSpeed(c.speed);
     final pos = vp.value.position.inMilliseconds;
     if (pos < c.startMs || pos >= c.endMs - 200) {
       await vp.seekTo(Duration(milliseconds: c.startMs));
@@ -460,7 +461,7 @@ class _ShortsScreenState extends State<ShortsScreen> {
                     const SizedBox(height: 4),
                     const SizedBox(height: 6),
                     Text(
-                      context.tr('selected_len', <String, String>{'t': _clock(c.selectedMs)}),
+                      context.tr('selected_len', <String, String>{'t': _clock(c.outputMs)}),
                       style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5),
                     ),
                   ],
@@ -497,6 +498,19 @@ class _ShortsScreenState extends State<ShortsScreen> {
           child: Text(context.tr('split_count', <String, String>{'n': '${c.plannedParts}'}),
               style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5)),
         ),
+        _CompactRow(
+          label: context.tr('speed_title'),
+          chips: <Widget>[
+            for (final v in const <double>[0.5, 1.0, 1.5, 2.0])
+              _smallChip('${v == v.roundToDouble() ? v.toInt() : v}×', c.speed == v, busy
+                  ? null
+                  : () {
+                      c.setSpeed(v);
+                      _vp?.setPlaybackSpeed(v);
+                    }),
+          ],
+        ),
+        const SizedBox(height: 6),
         _CompactRow(
           label: context.tr('quality_title'),
           chips: <Widget>[
