@@ -63,6 +63,11 @@ jobs:
               echo "keyAlias=$KEY_ALIAS"
               echo "keyPassword=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
             } > "$GITHUB_WORKSPACE/android/key.properties"
+            # SHA-256 of the signing certificate, used by the in-app integrity check.
+            FP=$(keytool -list -v -keystore "$GITHUB_WORKSPACE/android/app/upload-keystore.jks" \
+              -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" 2>/dev/null \
+              | grep -m1 'SHA256:' | sed 's/.*SHA256: *//' | tr -d ':' | tr 'A-F' 'a-f' || true)
+            echo "UPLOAD_SIG=$FP" >> "$GITHUB_ENV"
             echo "Release signing enabled."
           else
             echo "No keystore secrets set: building with the debug key (fine for testing)."
@@ -104,17 +109,30 @@ jobs:
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      # --obfuscate makes the compiled code hard to read; the symbols are kept as an artifact so
+      # crash reports can still be decoded.
       - name: Build release APK
         run: |
-          flutter build apk --release \
+          flutter build apk --release --obfuscate --split-debug-info=build/debug-info \
+            --dart-define=APP_SIGS="$UPLOAD_SIG" \
             --dart-define=ADMOB_BANNER_ID="${{ secrets.ADMOB_BANNER_ID }}" \
             --dart-define=ADMOB_INTERSTITIAL_ID="${{ secrets.ADMOB_INTERSTITIAL_ID }}" \
             --dart-define=ADMOB_REWARDED_ID="${{ secrets.ADMOB_REWARDED_ID }}" \
             --dart-define=ADMOB_NATIVE_ID="${{ secrets.ADMOB_NATIVE_ID }}"
 
+      # The Play Store re-signs the app with Google's key, so the check is only switched on in the
+      # bundle once you add that key's SHA-256 as the secret PLAY_SIGNING_SHA256.
       - name: Build Play Store bundle (.aab)
+        env:
+          PLAY_SIG: ${{ secrets.PLAY_SIGNING_SHA256 }}
         run: |
-          flutter build appbundle --release \
+          AAB_SIGS=""
+          if [ -n "$PLAY_SIG" ]; then
+            PS=$(echo "$PLAY_SIG" | tr -d ': ' | tr 'A-F' 'a-f')
+            AAB_SIGS="$PS,$UPLOAD_SIG"
+          fi
+          flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info \
+            --dart-define=APP_SIGS="$AAB_SIGS" \
             --dart-define=ADMOB_BANNER_ID="${{ secrets.ADMOB_BANNER_ID }}" \
             --dart-define=ADMOB_INTERSTITIAL_ID="${{ secrets.ADMOB_INTERSTITIAL_ID }}" \
             --dart-define=ADMOB_REWARDED_ID="${{ secrets.ADMOB_REWARDED_ID }}" \
@@ -134,4 +152,12 @@ jobs:
           name: Shrinkly-aab
           path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shrinkly-debug-symbols
+          path: build/debug-info
+          if-no-files-found: ignore
           retention-days: 30
