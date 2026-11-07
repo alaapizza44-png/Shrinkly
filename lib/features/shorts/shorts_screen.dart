@@ -444,8 +444,7 @@ class _ShortsScreenState extends State<ShortsScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
-              '${context.tr('out_size', <String, String>{'w': '${c.outWidth}', 'h': '${c.outHeight}'})}'
-              '${(c.info!.height < 720) ? '\n${context.tr('quality_note')}' : ''}',
+              context.tr('out_size', <String, String>{'w': '${c.outWidth}', 'h': '${c.outHeight}'}),
               style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5),
             ),
           ),

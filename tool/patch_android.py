@@ -65,7 +65,7 @@ def write_kotlin():
     print(f"[patch_android] MainActivity written for package {pkg}")
 
 
-MEDIA3 = "1.8.0"
+MEDIA3 = "1.5.1"
 
 
 def patch_dependencies():
@@ -90,6 +90,16 @@ def patch_dependencies():
             s = s[:m.end()] + libs + s[m.end():]
         else:
             s = s.rstrip() + "\n\ndependencies {\n" + libs + "}\n"
+        # The video preview plugin also ships Media3; every module must have the same version
+        # or export fails at run time ("Failed resolution of ... LogSessionId").
+        if kts:
+            s += ("\nconfigurations.all {\n    resolutionStrategy.eachDependency {\n"
+                  f"        if (requested.group == \"androidx.media3\") {{ useVersion(\"{MEDIA3}\") }}\n"
+                  "    }\n}\n")
+        else:
+            s += ("\nconfigurations.all {\n    resolutionStrategy.eachDependency { d ->\n"
+                  f"        if (d.requested.group == 'androidx.media3') {{ d.useVersion '{MEDIA3}' }}\n"
+                  "    }\n}\n")
         write(p, s)
         print("[patch_android] media3 dependencies added to", name)
         return
