@@ -15,6 +15,8 @@ class SettingsController extends ChangeNotifier {
   /// Last chosen custom compression as a percentage of the original (0 = auto).
   int targetPercent = 0;
 
+  bool onboarded = false;
+
   /// null = follow the device language.
   Locale? get locale => lang == 'system' ? null : Locale(lang);
 
@@ -25,6 +27,7 @@ class SettingsController extends ChangeNotifier {
     themeMode = ThemeMode.values[t.clamp(0, ThemeMode.values.length - 1).toInt()];
     final l = p.getString('lang') ?? 'system';
     lang = (l == 'en' || l == 'ar') ? l : 'system';
+    onboarded = p.getBool('onboarded') ?? false;
     targetPercent = (p.getInt('targetPercent') ?? 0).clamp(0, 90).toInt();
   }
 
@@ -38,6 +41,11 @@ class SettingsController extends ChangeNotifier {
     lang = v;
     notifyListeners();
     await _p?.setString('lang', v);
+  }
+
+  Future<void> setOnboarded() async {
+    onboarded = true;
+    await _p?.setBool('onboarded', true);
   }
 
   Future<void> setTargetPercent(int v) async {

@@ -216,6 +216,25 @@ class _ShortsScreenState extends State<ShortsScreen> {
                       label: Text(context.tr('pick_video'),
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                     ),
+              const SizedBox(height: 22),
+              for (final e in const <MapEntry<IconData, String>>[
+                MapEntry<IconData, String>(Icons.video_library_rounded, 'step1'),
+                MapEntry<IconData, String>(Icons.touch_app_rounded, 'step2'),
+                MapEntry<IconData, String>(Icons.download_done_rounded, 'step3'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(e.key, color: Colors.white.withValues(alpha: 0.9), size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(context.tr(e.value),
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.92), fontSize: 14)),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),

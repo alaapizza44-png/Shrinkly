@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n.dart';
-import 'screens/shell_screen.dart';
+import 'screens/intro_screen.dart';
 import 'services/ad_service.dart';
 import 'services/compress_queue.dart';
 import 'services/settings.dart';
@@ -48,7 +48,7 @@ class ShrinklyApp extends StatelessWidget {
           L.code = Localizations.localeOf(context).languageCode;
           return child ?? const SizedBox.shrink();
         },
-        home: const ShellScreen(),
+        home: const IntroGate(),
       ),
     );
   }
