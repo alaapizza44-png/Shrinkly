@@ -149,6 +149,52 @@ class NativeBridge {
     }
   }
 
+  /// System video picker without copying the file. Returns (uri, name) or null if cancelled.
+  static Future<({String uri, String name})?> pickVideo() async {
+    try {
+      final r = await _ch.invokeMethod<dynamic>('pickVideo');
+      if (r is! Map) return null;
+      final u = r['uri'] as String?;
+      if (u == null) return null;
+      return (uri: u, name: (r['name'] as String?) ?? 'video');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Clips saved by the app, newest first.
+  static Future<List<Work>> listWorks() async {
+    try {
+      final r = await _ch.invokeMethod<dynamic>('listWorks');
+      if (r is! List) return <Work>[];
+      return <Work>[
+        for (final e in r)
+          if (e is Map && e['uri'] is String)
+            Work(
+              uri: e['uri'] as String,
+              name: (e['name'] as String?) ?? '',
+              size: (e['size'] as num?)?.toInt() ?? 0,
+              durationMs: (e['durationMs'] as num?)?.toInt() ?? 0,
+              addedSec: (e['added'] as num?)?.toInt() ?? 0,
+            ),
+      ];
+    } catch (_) {
+      return <Work>[];
+    }
+  }
+
+  static Future<bool> _bool(String m, String uri) async {
+    try {
+      return (await _ch.invokeMethod<bool>(m, <String, dynamic>{'uri': uri})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> openVideo(String uri) => _bool('openVideo', uri);
+  static Future<bool> shareVideo(String uri) => _bool('shareVideo', uri);
+  static Future<bool> deleteWork(String uri) => _bool('deleteWork', uri);
+
   static Future<VideoInfo?> info(String path) async {
     try {
       final r = await _ch.invokeMethod<dynamic>('info', <String, dynamic>{'path': path});
@@ -173,4 +219,21 @@ class NativeBridge {
       return null;
     }
   }
+}
+
+/// A finished clip in the gallery.
+class Work {
+  const Work({
+    required this.uri,
+    required this.name,
+    required this.size,
+    required this.durationMs,
+    required this.addedSec,
+  });
+
+  final String uri;
+  final String name;
+  final int size;
+  final int durationMs;
+  final int addedSec;
 }

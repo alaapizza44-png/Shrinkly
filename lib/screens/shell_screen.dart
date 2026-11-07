@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../features/shorts/shorts_screen.dart';
 import '../l10n.dart';
 import 'home_screen.dart';
+import 'works_screen.dart';
 
 /// Bottom navigation: Shorts (main) and Compress.
 class ShellScreen extends StatefulWidget {
@@ -20,11 +21,14 @@ class _ShellScreenState extends State<ShellScreen> {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const <Widget>[ShortsScreen(), HomeScreen()],
+        children: const <Widget>[ShortsScreen(), HomeScreen(), WorksScreen()],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) {
+          setState(() => _index = i);
+          if (i == 2) WorksScreen.refresh.value++;
+        },
         destinations: <NavigationDestination>[
           NavigationDestination(
             icon: const Icon(Icons.smartphone_outlined),
@@ -35,6 +39,11 @@ class _ShellScreenState extends State<ShellScreen> {
             icon: const Icon(Icons.compress_outlined),
             selectedIcon: const Icon(Icons.compress_rounded),
             label: context.tr('tab_compress'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.video_library_outlined),
+            selectedIcon: const Icon(Icons.video_library_rounded),
+            label: context.tr('tab_works'),
           ),
         ],
       ),

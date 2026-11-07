@@ -128,7 +128,19 @@ class _OnboardingState extends State<_Onboarding> {
     final cs = Theme.of(context).colorScheme;
     final last = _i == _pages.length - 1;
     return Scaffold(
-      body: SafeArea(
+      body: Stack(
+        children: <Widget>[
+          Positioned(
+            top: -90,
+            right: -70,
+            child: _Blob(color: AppTheme.bright.withValues(alpha: 0.22), size: 260),
+          ),
+          Positioned(
+            bottom: -110,
+            left: -80,
+            child: _Blob(color: AppTheme.teal.withValues(alpha: 0.22), size: 300),
+          ),
+          SafeArea(
         child: Column(
           children: <Widget>[
             Align(
@@ -149,22 +161,7 @@ class _OnboardingState extends State<_Onboarding> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
-                          Container(
-                            width: 168,
-                            height: 168,
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.hero,
-                              borderRadius: BorderRadius.circular(48),
-                              boxShadow: <BoxShadow>[
-                                BoxShadow(
-                                  color: AppTheme.teal.withValues(alpha: 0.35),
-                                  blurRadius: 36,
-                                  offset: const Offset(0, 16),
-                                ),
-                              ],
-                            ),
-                            child: Icon(p.icon, color: Colors.white, size: 84),
-                          ),
+                          _Illustration(index: _pages.indexOf(p)),
                           const SizedBox(height: 36),
                           Text(context.tr(p.title),
                               textAlign: TextAlign.center,
@@ -216,6 +213,149 @@ class _OnboardingState extends State<_Onboarding> {
           ],
         ),
       ),
+        ],
+      ),
     );
   }
+}
+
+class _Blob extends StatelessWidget {
+  const _Blob({required this.color, required this.size});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: <Color>[color, color.withValues(alpha: 0)]),
+      ),
+    );
+  }
+}
+
+/// Small drawn illustrations for the three onboarding pages.
+class _Illustration extends StatelessWidget {
+  const _Illustration({required this.index});
+
+  final int index;
+
+  Widget _phone({required Widget child}) {
+    return Container(
+      width: 120,
+      height: 214,
+      decoration: BoxDecoration(
+        gradient: AppTheme.hero,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 3),
+        boxShadow: <BoxShadow>[
+          BoxShadow(color: AppTheme.teal.withValues(alpha: 0.4), blurRadius: 34, offset: const Offset(0, 16)),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    Widget art;
+    if (index == 0) {
+      art = _phone(
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 58),
+            Positioned(
+              bottom: 26,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text('Aa',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (index == 1) {
+      art = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _phone(
+            child: const Center(child: Icon(Icons.touch_app_rounded, color: Colors.white, size: 54)),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: 190,
+            height: 22,
+            child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                Container(
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                Positioned(
+                  left: 48,
+                  right: 40,
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(gradient: AppTheme.hero, borderRadius: BorderRadius.circular(3)),
+                  ),
+                ),
+                Positioned(left: 40, child: _handle()),
+                Positioned(right: 32, child: _handle()),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      Widget bar(double w, Color c, String t) => Container(
+            width: w,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(14)),
+            child: Text(t, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+          );
+      art = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          bar(200, cs.onSurfaceVariant.withValues(alpha: 0.55), '350 MB'),
+          const SizedBox(height: 10),
+          Icon(Icons.keyboard_double_arrow_down_rounded, color: cs.primary, size: 36),
+          const SizedBox(height: 10),
+          Container(
+            width: 70,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(gradient: AppTheme.hero, borderRadius: BorderRadius.circular(14)),
+            child: const Text('45 MB', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      );
+    }
+    return SizedBox(height: 270, child: Center(child: art));
+  }
+
+  Widget _handle() => Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppTheme.teal, width: 3),
+        ),
+      );
 }

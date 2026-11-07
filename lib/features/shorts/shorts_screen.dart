@@ -42,7 +42,9 @@ class _ShortsScreenState extends State<ShortsScreen> {
     _vp = null;
     old?.dispose();
     if (path == null) return;
-    final vp = VideoPlayerController.file(File(path));
+    final vp = path.startsWith('content://')
+        ? VideoPlayerController.contentUri(Uri.parse(path))
+        : VideoPlayerController.file(File(path));
     _vp = vp;
     vp.initialize().then((_) {
       if (!mounted || _vp != vp) return;

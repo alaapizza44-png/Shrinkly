@@ -23,7 +23,7 @@ class L {
   }
 
   static const Map<String, String> _en = <String, String>{
-    'app_name': 'Shrinkly',
+    'app_name': 'Shorts Maker',
     'tagline': 'Shorts maker and video compressor',
     'choose_videos': 'Choose videos',
     'add_more': 'Add more',
@@ -51,7 +51,7 @@ class L {
     'clear_list': 'Clear list',
     'remove': 'Remove',
     'pick_error': 'Could not open the file picker.',
-    'notif_title': 'Shrinkly is compressing your video',
+    'notif_title': 'Shorts Maker is compressing your video',
     'settings': 'Settings',
     'language': 'Language',
     'lang_system': 'Device',
@@ -95,6 +95,12 @@ class L {
     'step1': 'Choose a video',
     'step2': 'Pick the shot and add text',
     'step3': 'Export to your gallery',
+    'tab_works': 'My clips',
+    'works_empty': 'No clips yet',
+    'works_empty_sub': 'Shorts you export will appear here, ready to play and share.',
+    'w_share': 'Share',
+    'w_delete': 'Delete',
+    'w_delete_q': 'Delete this clip from your phone?',
     'trim_title':'Part of the video',
     'start_label':'Start {t}',
     'end_label':'End {t}',
@@ -110,11 +116,11 @@ class L {
     'exporting_part':'Creating clip {i} of {n}',
     'export_done':'Saved {n} clip(s) in Movies/Shrinkly',
     'export_error':'Export failed: {e}',
-    'about_text': 'Shrinkly 1.0.0\nCompress your own videos so they are easy to send and store. Processing happens on your device.',
+    'about_text': 'Shorts Maker 1.0.0\nCompress your own videos so they are easy to send and store. Processing happens on your device.',
   };
 
   static const Map<String, String> _ar = <String, String>{
-    'app_name': 'Shrinkly',
+    'app_name': 'Shorts Maker',
     'tagline': 'صانع شورتس وضاغط فيديو',
     'choose_videos': 'اختر فيديوهات',
     'add_more': 'إضافة المزيد',
@@ -142,7 +148,7 @@ class L {
     'clear_list': 'مسح القائمة',
     'remove': 'إزالة',
     'pick_error': 'تعذّر فتح منتقي الملفات.',
-    'notif_title': 'Shrinkly يضغط الفيديو الخاص بك',
+    'notif_title': 'Shorts Maker يضغط الفيديو الخاص بك',
     'settings': 'الإعدادات',
     'language': 'اللغة',
     'lang_system': 'لغة الجهاز',
@@ -186,6 +192,12 @@ class L {
     'step1': 'اختر فيديو',
     'step2': 'حدد اللقطة وأضف نصًا',
     'step3': 'صدّر إلى المعرض',
+    'tab_works': 'أعمالي',
+    'works_empty': 'لا توجد مقاطع بعد',
+    'works_empty_sub': 'الشورتس التي تصدّرها ستظهر هنا جاهزة للتشغيل والمشاركة.',
+    'w_share': 'مشاركة',
+    'w_delete': 'حذف',
+    'w_delete_q': 'حذف هذا المقطع من هاتفك؟',
     'trim_title':'الجزء المطلوب',
     'start_label':'البداية {t}',
     'end_label':'النهاية {t}',
@@ -201,7 +213,7 @@ class L {
     'exporting_part':'جارٍ إنشاء المقطع {i} من {n}',
     'export_done':'تم حفظ {n} مقطع في الأفلام/Shrinkly',
     'export_error':'فشل التصدير: {e}',
-    'about_text': 'Shrinkly 1.0.0\nاضغط فيديوهاتك الخاصة ليسهل إرسالها وتخزينها. تتم المعالجة على جهازك.',
+    'about_text': 'Shorts Maker 1.0.0\nاضغط فيديوهاتك الخاصة ليسهل إرسالها وتخزينها. تتم المعالجة على جهازك.',
   };
 }
 

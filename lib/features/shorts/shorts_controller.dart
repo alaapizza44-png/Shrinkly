@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../services/native_bridge.dart';
@@ -153,11 +152,11 @@ class ShortsController extends ChangeNotifier {
     picking = true;
     notifyListeners();
     try {
-      final r = await FilePicker.platform.pickFiles(type: FileType.video);
-      final p = (r == null || r.files.isEmpty) ? null : r.files.first.path;
-      if (p == null) return;
+      final r = await NativeBridge.pickVideo();
+      if (r == null) return;
+      final p = r.uri;
       path = p;
-      name = p.split('/').last;
+      name = r.name;
       info = null;
       thumb = null;
       pan = 0.5;

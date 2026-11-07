@@ -26,7 +26,7 @@ ICONS = os.path.join(ROOT, "tool", "icons")
 TPL = os.path.join(ROOT, "tool", "android_templates")
 
 TEST_APP_ID = "ca-app-pub-3940256099942544~3347511713"  # Google's sample AdMob app id
-APP_LABEL = "Shrinkly"
+APP_LABEL = "Shorts Maker"
 MIN_SDK = 24
 
 
@@ -261,7 +261,7 @@ def install_icons():
         os.path.join(res, "values", "ic_launcher_background.xml"),
         """<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0F9D8A</color>
+    <color name="ic_launcher_background">#7C3AED</color>
 </resources>
 """,
     )

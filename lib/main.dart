@@ -29,7 +29,7 @@ class ShrinklyApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: SettingsController.instance,
       builder: (context, _) => MaterialApp(
-        title: 'Shrinkly',
+        title: 'Shorts Maker',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),

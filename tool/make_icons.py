@@ -5,9 +5,9 @@ from PIL import Image, ImageDraw
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 os.makedirs(OUT, exist_ok=True)
 
-AMBER = (11, 122, 107)   # deep teal
-ORANGE = (15, 157, 138)
-DEEP = (22, 190, 160)    # bright teal
+AMBER = (79, 70, 229)    # indigo
+ORANGE = (147, 51, 234)
+DEEP = (217, 70, 239)    # fuchsia
 
 
 def gradient(size):
@@ -34,11 +34,9 @@ def glyph(size, scale):
         return (ox + x * u, oy + y * u)
 
     w = (255, 255, 255, 255)
-    # play triangle (the video)
-    d.polygon([P(0.38, 0.30), P(0.38, 0.70), P(0.66, 0.50)], fill=w)
-    # two arrows squeezing in from the sides (the compression)
-    d.polygon([P(0.04, 0.50), P(0.20, 0.34), P(0.20, 0.44), P(0.30, 0.44), P(0.30, 0.56), P(0.20, 0.56), P(0.20, 0.66)], fill=w)
-    d.polygon([P(0.96, 0.50), P(0.80, 0.34), P(0.80, 0.44), P(0.70, 0.44), P(0.70, 0.56), P(0.80, 0.56), P(0.80, 0.66)], fill=w)
+    # vertical 9:16 frame with a play triangle (a short video)
+    d.rounded_rectangle([*P(0.28, 0.08), *P(0.72, 0.92)], radius=u * 0.1, outline=w, width=int(u * 0.06))
+    d.polygon([P(0.43, 0.36), P(0.43, 0.64), P(0.62, 0.50)], fill=w)
     return im.resize((size, size), Image.LANCZOS)
 
 

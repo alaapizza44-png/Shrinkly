@@ -1,6 +1,8 @@
 package __PKG__
 
 import android.content.ContentValues
+import android.content.Intent
+import android.provider.OpenableColumns
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
@@ -49,6 +51,140 @@ class MainActivity : FlutterActivity() {
     private var pending: MethodChannel.Result? = null
     private var pendingOverlay: Bitmap? = null
     private var tmpOut: File? = null
+    private var pickResult: MethodChannel.Result? = null
+    private val pickCode = 4711
+
+    /** Opens the system video picker and returns the chosen video as a content:// uri (no copying). */
+    private fun pickVideo(result: MethodChannel.Result) {
+        if (pickResult != null) {
+            result.success(null)
+            return
+        }
+        pickResult = result
+        try {
+            val i = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            i.addCategory(Intent.CATEGORY_OPENABLE)
+            i.type = "video/*"
+            @Suppress("DEPRECATION")
+            startActivityForResult(i, pickCode)
+        } catch (e: Throwable) {
+            pickResult = null
+            result.success(null)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode != pickCode) {
+            super.onActivityResult(requestCode, resultCode, data)
+            return
+        }
+        val r = pickResult
+        pickResult = null
+        val uri = if (resultCode == RESULT_OK) data?.data else null
+        if (r == null) return
+        if (uri == null) {
+            r.success(null)
+            return
+        }
+        var name = "video"
+        try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) name = c.getString(0) ?: name
+            }
+        } catch (e: Exception) {
+        }
+        r.success(mapOf("uri" to uri.toString(), "name" to name))
+    }
+
+    /** Shorts saved by the app (Movies/Shrinkly), newest first. */
+    private fun listWorks(): List<Map<String, Any?>> {
+        val out = ArrayList<Map<String, Any?>>()
+        try {
+            val proj = arrayOf(
+                MediaStore.Video.Media._ID,
+                MediaStore.Video.Media.DISPLAY_NAME,
+                MediaStore.Video.Media.SIZE,
+                MediaStore.Video.Media.DURATION,
+                MediaStore.Video.Media.DATE_ADDED
+            )
+            val sel: String
+            val args: Array<String>
+            if (Build.VERSION.SDK_INT >= 29) {
+                sel = "${MediaStore.Video.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Video.Media.DISPLAY_NAME} LIKE ?"
+                args = arrayOf("Movies/Shrinkly%", "Short_%")
+            } else {
+                @Suppress("DEPRECATION")
+                sel = "${MediaStore.Video.Media.DATA} LIKE ? AND ${MediaStore.Video.Media.DISPLAY_NAME} LIKE ?"
+                args = arrayOf("%/Movies/Shrinkly/%", "Short_%")
+            }
+            contentResolver.query(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI, proj, sel, args,
+                "${MediaStore.Video.Media.DATE_ADDED} DESC"
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getLong(0)
+                    val uri = android.content.ContentUris.withAppendedId(
+                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id
+                    )
+                    out.add(
+                        mapOf(
+                            "uri" to uri.toString(),
+                            "name" to (c.getString(1) ?: ""),
+                            "size" to c.getLong(2),
+                            "durationMs" to c.getLong(3),
+                            "added" to c.getLong(4)
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+        }
+        return out
+    }
+
+    private fun openVideo(uri: String?): Boolean {
+        if (uri == null) return false
+        return try {
+            val i = Intent(Intent.ACTION_VIEW)
+            i.setDataAndType(Uri.parse(uri), "video/*")
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(i)
+            true
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    private fun shareVideo(uri: String?): Boolean {
+        if (uri == null) return false
+        return try {
+            val i = Intent(Intent.ACTION_SEND)
+            i.type = "video/mp4"
+            i.putExtra(Intent.EXTRA_STREAM, Uri.parse(uri))
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(Intent.createChooser(i, null))
+            true
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    private fun deleteWork(uri: String?): Boolean {
+        if (uri == null) return false
+        return try {
+            contentResolver.delete(Uri.parse(uri), null, null) > 0
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    private fun toUri(path: String): Uri =
+        if (path.startsWith("content://")) Uri.parse(path) else Uri.fromFile(File(path))
+
+    private fun MediaMetadataRetriever.setSource(path: String) {
+        if (path.startsWith("content://")) setDataSource(this@MainActivity, Uri.parse(path)) else setDataSource(path)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -97,6 +233,14 @@ class MainActivity : FlutterActivity() {
                             }.start()
                         }
                     }
+                    "pickVideo" -> pickVideo(result)
+                    "listWorks" -> Thread {
+                        val out = listWorks()
+                        ui.post { result.success(out) }
+                    }.start()
+                    "openVideo" -> result.success(openVideo(call.argument<String>("uri")))
+                    "shareVideo" -> result.success(shareVideo(call.argument<String>("uri")))
+                    "deleteWork" -> result.success(deleteWork(call.argument<String>("uri")))
                     "exportShort" -> startExport(call, result)
                     "exportProgress" -> result.success(exportProgress())
                     "cancelExport" -> {
@@ -163,7 +307,7 @@ class MainActivity : FlutterActivity() {
                 .setEndPositionMs(endMs)
                 .build()
             val item = MediaItem.Builder()
-                .setUri(Uri.fromFile(File(path)))
+                .setUri(toUri(path))
                 .setClippingConfiguration(clip)
                 .build()
 
@@ -301,7 +445,7 @@ class MainActivity : FlutterActivity() {
     private fun readInfo(path: String): Map<String, Any>? {
         val r = MediaMetadataRetriever()
         try {
-            r.setDataSource(path)
+            r.setSource(path)
             fun num(key: Int): Long = r.extractMetadata(key)?.toLongOrNull() ?: 0L
             val rot = num(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION).toInt()
             var w = num(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt()
@@ -333,7 +477,7 @@ class MainActivity : FlutterActivity() {
     private fun readThumb(path: String): ByteArray? {
         val r = MediaMetadataRetriever()
         try {
-            r.setDataSource(path)
+            r.setSource(path)
             var bmp = r.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             if (bmp == null) bmp = r.getFrameAtTime(0L)
             if (bmp == null) return null
