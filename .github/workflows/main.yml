@@ -1,11 +1,14 @@
 name: Build APK
 
+# Runs on every push, on pull requests, and manually from the "Actions" tab ("Run workflow").
 on:
   push:
   pull_request:
   workflow_dispatch:
 
 env:
+  # Flutter version used to compile. Pinned so builds are reproducible.
+  # If you ever want the newest, change to a newer version number (e.g. 3.44.0).
   FLUTTER_VERSION: "3.41.2"
 
 jobs:
@@ -30,17 +33,21 @@ jobs:
           channel: stable
           cache: true
 
+      # The android/ folder is generated here so you never need Android Studio.
       - name: Generate Android project
         run: |
           flutter create --platforms=android --org com.shrinkly --project-name shrinkly .
+          # `flutter create` must not overwrite our own files; restore them just in case.
           git checkout -- lib pubspec.yaml analysis_options.yaml || true
           rm -rf test
 
-      - name: Patch Android project (manifest, MainActivity, icons, AdMob id)
+      - name: Patch Android project (manifest, service, icons, AdMob id)
         env:
           ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
         run: python3 tool/patch_android.py
 
+      # Optional: sign with your own key (see README "Signing"). Without the secrets the build
+      # still works but uses the debug key, which Google Play does not accept.
       - name: Set up release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -61,6 +68,7 @@ jobs:
             echo "No keystore secrets set: building with the debug key (fine for testing)."
           fi
 
+      # Exact plugin version (1.10.0 supports fractional bitrates).
       - name: Pin compression plugin version
         run: |
           sed -i 's/^  light_compressor_v2:.*/  light_compressor_v2: 1.10.0/' pubspec.yaml
@@ -69,6 +77,8 @@ jobs:
       - name: Get packages
         run: flutter pub get
 
+      # The plugin does not apply the Kotlin compiler plugin itself, so its Kotlin code was never
+      # compiled ("cannot find symbol LightCompressorPlugin"). Add it here.
       - name: Fix plugin Kotlin setup
         run: |
           python3 - <<'PY'
@@ -98,13 +108,17 @@ jobs:
         run: |
           flutter build apk --release \
             --dart-define=ADMOB_BANNER_ID="${{ secrets.ADMOB_BANNER_ID }}" \
-            --dart-define=ADMOB_INTERSTITIAL_ID="${{ secrets.ADMOB_INTERSTITIAL_ID }}"
+            --dart-define=ADMOB_INTERSTITIAL_ID="${{ secrets.ADMOB_INTERSTITIAL_ID }}" \
+            --dart-define=ADMOB_REWARDED_ID="${{ secrets.ADMOB_REWARDED_ID }}" \
+            --dart-define=ADMOB_NATIVE_ID="${{ secrets.ADMOB_NATIVE_ID }}"
 
       - name: Build Play Store bundle (.aab)
         run: |
           flutter build appbundle --release \
             --dart-define=ADMOB_BANNER_ID="${{ secrets.ADMOB_BANNER_ID }}" \
-            --dart-define=ADMOB_INTERSTITIAL_ID="${{ secrets.ADMOB_INTERSTITIAL_ID }}"
+            --dart-define=ADMOB_INTERSTITIAL_ID="${{ secrets.ADMOB_INTERSTITIAL_ID }}" \
+            --dart-define=ADMOB_REWARDED_ID="${{ secrets.ADMOB_REWARDED_ID }}" \
+            --dart-define=ADMOB_NATIVE_ID="${{ secrets.ADMOB_NATIVE_ID }}"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
