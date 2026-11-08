@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../l10n.dart';
-import '../services/compress_queue.dart' show fmtBytes;
 import '../services/native_bridge.dart';
 import '../theme.dart';
+import 'home_screen.dart' show TargetCard;
 import 'settings_screen.dart';
+import 'shell_screen.dart';
+import '../services/compress_queue.dart' show fmtBytes, CompressQueue;
 
 /// "My clips": the Shorts exported by the app, with play / share / delete.
 class WorksScreen extends StatefulWidget {
@@ -38,6 +41,47 @@ class _WorksScreenState extends State<WorksScreen> {
   Future<void> _load() async {
     final w = await NativeBridge.listWorks();
     if (mounted) setState(() => _works = w);
+  }
+
+  /// Choose how to compress (automatic / custom percent, resolution) and send the clip to Compress.
+  Future<void> _compress(Work w) async {
+    final path = w.path;
+    if (path == null || path.isEmpty) return;
+    final go = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListenableBuilder(
+                listenable: CompressQueue.instance,
+                builder: (_, __) => TargetCard(enabled: !CompressQueue.instance.running),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  icon: const Icon(Icons.compress_rounded),
+                  label: Text(ctx.tr('w_compress_go')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (go != true || !mounted) return;
+    final q = CompressQueue.instance;
+    q.addPath(path, w.size);
+    ShellScreen.tab.value = 1;
+    if (!q.running) {
+      // Starts right away; the Compress tab shows the progress.
+      unawaited(q.start());
+    }
   }
 
   Future<void> _delete(Work w) async {
@@ -110,6 +154,7 @@ class _WorksScreenState extends State<WorksScreen> {
                     itemBuilder: (context, i) => _WorkCard(
                       work: works[i],
                       onDelete: () => _delete(works[i]),
+                      onCompress: () => _compress(works[i]),
                     ),
                   ),
                 ),
@@ -118,10 +163,11 @@ class _WorksScreenState extends State<WorksScreen> {
 }
 
 class _WorkCard extends StatefulWidget {
-  const _WorkCard({required this.work, required this.onDelete});
+  const _WorkCard({required this.work, required this.onDelete, required this.onCompress});
 
   final Work work;
   final VoidCallback onDelete;
+  final VoidCallback onCompress;
 
   @override
   State<_WorkCard> createState() => _WorkCardState();
@@ -193,6 +239,13 @@ class _WorkCardState extends State<_WorkCard> {
                   icon: Icon(Icons.share_rounded, color: AppTheme.teal, size: 20),
                   onPressed: () => NativeBridge.shareVideo(w.uri),
                 ),
+                if (w.path != null)
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: context.tr('w_compress'),
+                    icon: Icon(Icons.compress_rounded, color: AppTheme.teal, size: 20),
+                    onPressed: widget.onCompress,
+                  ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: context.tr('w_delete'),

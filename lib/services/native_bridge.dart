@@ -180,6 +180,7 @@ class NativeBridge {
               size: (e['size'] as num?)?.toInt() ?? 0,
               durationMs: (e['durationMs'] as num?)?.toInt() ?? 0,
               addedSec: (e['added'] as num?)?.toInt() ?? 0,
+              path: e['path'] as String?,
             ),
       ];
     } catch (_) {
@@ -272,6 +273,7 @@ class Work {
     required this.size,
     required this.durationMs,
     required this.addedSec,
+    this.path,
   });
 
   final String uri;
@@ -279,4 +281,7 @@ class Work {
   final int size;
   final int durationMs;
   final int addedSec;
+
+  /// Real file path when the system exposes it (needed by the compressor).
+  final String? path;
 }

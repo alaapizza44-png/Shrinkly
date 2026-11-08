@@ -207,7 +207,7 @@ class _Workspace extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             children: <Widget>[
-              _TargetCard(enabled: !q.running),
+              TargetCard(enabled: !q.running),
               const SizedBox(height: 12),
               for (final j in q.jobs) ...<Widget>[
                 _JobTile(job: j, locked: q.running),
@@ -222,8 +222,8 @@ class _Workspace extends StatelessWidget {
   }
 }
 
-class _TargetCard extends StatelessWidget {
-  const _TargetCard({required this.enabled});
+class TargetCard extends StatelessWidget {
+  const TargetCard({super.key, required this.enabled});
 
   final bool enabled;
 

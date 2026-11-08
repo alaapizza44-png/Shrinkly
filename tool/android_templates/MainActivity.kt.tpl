@@ -184,7 +184,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /** Shorts saved by the app (Movies/Shrinkly), newest first. */
+    /** Shorts saved by the app (Movies/Shorts Maker, or the old Movies/Shrinkly), newest first. */
     private fun listWorks(): List<Map<String, Any?>> {
         val out = ArrayList<Map<String, Any?>>()
         try {
@@ -193,17 +193,18 @@ class MainActivity : FlutterActivity() {
                 MediaStore.Video.Media.DISPLAY_NAME,
                 MediaStore.Video.Media.SIZE,
                 MediaStore.Video.Media.DURATION,
-                MediaStore.Video.Media.DATE_ADDED
+                MediaStore.Video.Media.DATE_ADDED,
+                MediaStore.Video.Media.DATA
             )
             val sel: String
             val args: Array<String>
             if (Build.VERSION.SDK_INT >= 29) {
-                sel = "${MediaStore.Video.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Video.Media.DISPLAY_NAME} LIKE ?"
-                args = arrayOf("Movies/Shrinkly%", "Short_%")
+                sel = "(${MediaStore.Video.Media.RELATIVE_PATH} LIKE ? OR ${MediaStore.Video.Media.RELATIVE_PATH} LIKE ?) AND ${MediaStore.Video.Media.DISPLAY_NAME} LIKE ?"
+                args = arrayOf("Movies/Shorts Maker%", "Movies/Shrinkly%", "Short_%")
             } else {
                 @Suppress("DEPRECATION")
-                sel = "${MediaStore.Video.Media.DATA} LIKE ? AND ${MediaStore.Video.Media.DISPLAY_NAME} LIKE ?"
-                args = arrayOf("%/Movies/Shrinkly/%", "Short_%")
+                sel = "(${MediaStore.Video.Media.DATA} LIKE ? OR ${MediaStore.Video.Media.DATA} LIKE ?) AND ${MediaStore.Video.Media.DISPLAY_NAME} LIKE ?"
+                args = arrayOf("%/Movies/Shorts Maker/%", "%/Movies/Shrinkly/%", "Short_%")
             }
             contentResolver.query(
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI, proj, sel, args,
@@ -220,7 +221,8 @@ class MainActivity : FlutterActivity() {
                             "name" to (c.getString(1) ?: ""),
                             "size" to c.getLong(2),
                             "durationMs" to c.getLong(3),
-                            "added" to c.getLong(4)
+                            "added" to c.getLong(4),
+                            "path" to c.getString(5)
                         )
                     )
                 }
@@ -490,7 +492,7 @@ class MainActivity : FlutterActivity() {
                 val values = ContentValues().apply {
                     put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
                     put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Shrinkly")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Shorts Maker")
                     put(MediaStore.Video.Media.IS_PENDING, 1)
                 }
                 val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
@@ -504,7 +506,7 @@ class MainActivity : FlutterActivity() {
                 uri.toString()
             } else {
                 @Suppress("DEPRECATION")
-                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Shrinkly")
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Shorts Maker")
                 dir.mkdirs()
                 val dest = File(dir, displayName)
                 file.copyTo(dest, true)

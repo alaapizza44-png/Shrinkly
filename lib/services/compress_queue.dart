@@ -316,6 +316,17 @@ class CompressQueue extends ChangeNotifier {
     return added;
   }
 
+  /// Adds a video that is already on the phone (e.g. from "My clips"). False if already listed.
+  bool addPath(String path, int size) {
+    if (jobs.any((j) => j.path == path)) return false;
+    final job = Job(path, size);
+    jobs.add(job);
+    unawaited(_enrich(job));
+    notifyListeners();
+    unawaited(_save());
+    return true;
+  }
+
   Future<void> _enrich(Job j) async {
     final info = await NativeBridge.info(j.path);
     j.info = info;

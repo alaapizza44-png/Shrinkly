@@ -9,12 +9,34 @@ import 'works_screen.dart';
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
 
+  /// Switch tab from anywhere (0 Shorts, 1 Compress, 2 My clips).
+  static final ValueNotifier<int> tab = ValueNotifier<int>(0);
+
   @override
   State<ShellScreen> createState() => _ShellScreenState();
 }
 
 class _ShellScreenState extends State<ShellScreen> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    ShellScreen.tab.addListener(_onTab);
+  }
+
+  @override
+  void dispose() {
+    ShellScreen.tab.removeListener(_onTab);
+    super.dispose();
+  }
+
+  void _onTab() {
+    if (ShellScreen.tab.value != _index) {
+      setState(() => _index = ShellScreen.tab.value);
+      if (_index == 2) WorksScreen.refresh.value++;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +49,7 @@ class _ShellScreenState extends State<ShellScreen> {
         selectedIndex: _index,
         onDestinationSelected: (i) {
           setState(() => _index = i);
+          ShellScreen.tab.value = i;
           if (i == 2) WorksScreen.refresh.value++;
         },
         destinations: <NavigationDestination>[
