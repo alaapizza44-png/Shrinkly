@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../l10n.dart';
 import '../services/native_bridge.dart';
 import '../theme.dart';
@@ -67,12 +68,14 @@ class _IntegrityGateState extends State<IntegrityGate> {
                 Text(context.tr('tamper_sub'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: cs.onSurfaceVariant, height: 1.45, fontSize: 15)),
-                const SizedBox(height: 26),
-                FilledButton.icon(
-                  onPressed: NativeBridge.openStore,
-                  icon: const Icon(Icons.shop_rounded),
-                  label: Text(context.tr('tamper_btn')),
-                ),
+                if (AppInfo.storeUrl.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 26),
+                  FilledButton.icon(
+                    onPressed: NativeBridge.openStore,
+                    icon: const Icon(Icons.shop_rounded),
+                    label: Text(context.tr('tamper_btn')),
+                  ),
+                ],
               ],
             ),
           ),

@@ -24,10 +24,17 @@ free on Google Play before publishing, and change it in `tool/patch_android.py` 
 By default Google's TEST ads are used. For real ads create banner + interstitial units in AdMob and add the repository secrets
 `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID`, `ADMOB_REWARDED_ID` (Settings -> Secrets and variables -> Actions).
 
-## Signing and privacy policy
-Same steps as in the SnappyDown README: run "Create signing key (run once)", add `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
-`KEY_ALIAS`; publish `docs/privacy.html` with GitHub Pages (folder `/docs`). Replace `YOUR_EMAIL@example.com` in
-`docs/privacy.html` and `lib/config.dart` with your real contact e-mail first.
+## Release checklist (everything is automatic except the one-time clicks)
+1. **Signing key**: Actions > "Create signing key (run once)" > Run. If you added a secret `GH_PAT` (a fine-grained personal access
+   token with "Secrets: read and write" on this repository) the secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` are created
+   for you; otherwise copy them from the run's artifact. Download the `KEYSTORE-BACKUP` artifact and keep it somewhere safe.
+2. **Contact e-mail**: Settings > Secrets and variables > Actions > Variables > `CONTACT_EMAIL` (used inside the app and on the policy page).
+3. **Privacy policy page**: Settings > Pages > Source = "GitHub Actions", then run "Publish privacy policy". URL: `https://<user>.github.io/<repo>/privacy.html`.
+4. **Ads**: secrets `ADMOB_APP_ID`, `ADMOB_BANNER_ID`, `ADMOB_INTERSTITIAL_ID`, `ADMOB_REWARDED_ID` (test ads are used while they are empty).
+5. **Store link** (after publishing): variable `STORE_URL` turns on the "Rate" button and the rating prompt.
+6. **Google Play only**: after the first upload copy the "App signing" SHA-256 from Play Console into the secret `PLAY_SIGNING_SHA256`.
+7. Every build gets a new version code automatically (the workflow run number).
+Store texts and graphics: `store/LISTING.md`, `store/icon-512.png`, `store/feature-graphic-1024x500.png`.
 
 ## Speed notes
 Compression re-encodes every frame on the phone, so large / long / high-resolution / 60 fps videos take a while and the phone may
@@ -46,4 +53,4 @@ Please test on a real phone: a short video, a large video (1 GB+), cancelling, l
 
 ## Files
 `lib/services/compress_queue.dart` (the compression queue), `lib/screens/home_screen.dart` (the whole UI),
-`tool/patch_android.py` (manifest, minSdk, signing, icons), `.github/workflows/build-apk.yml`.
+`tool/patch_android.py` (manifest, minSdk, signing, icons), `.github/workflows/main.yml`.

@@ -161,11 +161,12 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun shareApp(text: String?): Boolean {
+    private fun shareApp(text: String?, url: String?): Boolean {
         return try {
             val i = Intent(Intent.ACTION_SEND)
             i.type = "text/plain"
-            i.putExtra(Intent.EXTRA_TEXT, (text ?: "") + "\nhttps://play.google.com/store/apps/details?id=" + packageName)
+            val link = if (url.isNullOrEmpty()) "" else "\n" + url
+            i.putExtra(Intent.EXTRA_TEXT, (text ?: "") + link)
             startActivity(Intent.createChooser(i, null))
             true
         } catch (e: Throwable) {
@@ -173,19 +174,13 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun openStore(): Boolean {
+    private fun openStore(url: String?): Boolean {
+        if (url.isNullOrEmpty()) return false
         return try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + packageName)))
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
             true
         } catch (e: Throwable) {
-            try {
-                startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + packageName))
-                )
-                true
-            } catch (e2: Throwable) {
-                false
-            }
+            false
         }
     }
 
@@ -327,8 +322,8 @@ class MainActivity : FlutterActivity() {
                     }
                     "notifyDone" -> result.success(notifyDone(call.argument<String>("title"), call.argument<String>("text")))
                     "signatures" -> result.success(signatures())
-                    "shareApp" -> result.success(shareApp(call.argument<String>("text")))
-                    "openStore" -> result.success(openStore())
+                    "shareApp" -> result.success(shareApp(call.argument<String>("text"), call.argument<String>("url")))
+                    "openStore" -> result.success(openStore(call.argument<String>("url")))
                     "pickVideo" -> pickVideo(result)
                     "listWorks" -> Thread {
                         val out = listWorks()

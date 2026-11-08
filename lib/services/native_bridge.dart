@@ -1,6 +1,8 @@
 
 import 'package:flutter/services.dart';
 
+import '../config.dart';
+
 /// Basic facts about a video, read natively (see tool/android_templates/MainActivity.kt.tpl).
 class VideoInfo {
   const VideoInfo({
@@ -215,7 +217,9 @@ class NativeBridge {
 
   static Future<bool> shareApp(String text) async {
     try {
-      return (await _ch.invokeMethod<bool>('shareApp', <String, dynamic>{'text': text})) ?? false;
+      return (await _ch.invokeMethod<bool>(
+              'shareApp', <String, dynamic>{'text': text, 'url': AppInfo.storeUrl})) ??
+          false;
     } catch (_) {
       return false;
     }
@@ -223,7 +227,8 @@ class NativeBridge {
 
   static Future<bool> openStore() async {
     try {
-      return (await _ch.invokeMethod<bool>('openStore')) ?? false;
+      if (AppInfo.storeUrl.isEmpty) return false;
+      return (await _ch.invokeMethod<bool>('openStore', <String, dynamic>{'url': AppInfo.storeUrl})) ?? false;
     } catch (_) {
       return false;
     }

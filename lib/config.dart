@@ -32,6 +32,16 @@ class AdConfig {
 class AppInfo {
   AppInfo._();
 
-  static const String contactEmail = 'YOUR_EMAIL@example.com';
+  /// Link to the app's page in the store it is published on (for "Rate" / "Share" and the
+  /// rating prompt). Leave empty until the app is live: the rating prompt and the Rate button are
+  /// hidden while it is empty. Example (Google Play):
+  /// https://play.google.com/store/apps/details?id=com.shrinkly.shrinkly
+  static const String storeUrl = String.fromEnvironment('STORE_URL');
+
+  static const String _email = String.fromEnvironment('CONTACT_EMAIL');
+
+  /// Set the repository VARIABLE CONTACT_EMAIL (Settings > Secrets and variables > Actions >
+  /// Variables) and it is used here and on the privacy policy page automatically.
+  static String get contactEmail => _email.isNotEmpty ? _email : 'YOUR_EMAIL@example.com';
   static const String policyDate = 'November 6, 2026';
 }

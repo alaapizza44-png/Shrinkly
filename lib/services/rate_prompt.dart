@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../l10n.dart';
 import '../theme.dart';
 import 'native_bridge.dart';
@@ -17,6 +18,7 @@ class RatePrompt {
 
   /// Call after every successfully finished export / compression.
   static void onSuccess() {
+    if (AppInfo.storeUrl.isEmpty) return; // not published in a store yet
     final s = SettingsController.instance;
     s.successes++;
     s.saveRating();

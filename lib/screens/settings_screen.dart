@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../l10n.dart';
 import '../features/shorts/shorts_controller.dart';
 import '../services/ad_service.dart';
@@ -85,12 +86,13 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               _Header(context.tr('support')),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.star_outline_rounded),
-                title: Text(context.tr('rate_app')),
-                onTap: NativeBridge.openStore,
-              ),
+              if (AppInfo.storeUrl.isNotEmpty)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.star_outline_rounded),
+                  title: Text(context.tr('rate_app')),
+                  onTap: NativeBridge.openStore,
+                ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.share_outlined),
