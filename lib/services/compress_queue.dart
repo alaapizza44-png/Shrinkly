@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -376,6 +377,18 @@ class CompressQueue extends ChangeNotifier {
     }
   }
 
+  /// Bitrate (bits/s) for "auto": about 0.075 bits per pixel per frame, never above 80% of the
+  /// original video bitrate, never below 400 kbps.
+  double? _autoBps(VideoInfo? i, (int, int)? sz) {
+    if (i == null || i.width <= 0 || i.height <= 0) return null;
+    final w = sz?.$1 ?? i.width;
+    final h = sz?.$2 ?? i.height;
+    final fps = i.fps > 0 ? math.min(i.fps, 60.0) : 30.0;
+    var v = w * h * fps * 0.075;
+    if (i.bitrate > 0 && v > i.bitrate * 0.8) v = i.bitrate * 0.8;
+    return v < 400000 ? 400000 : v;
+  }
+
   Future<void> start() async {
     if (running) return;
     running = true;
@@ -423,14 +436,20 @@ class CompressQueue extends ChangeNotifier {
         // One pass with a bitrate computed from the duration is much faster than asking the
         // plugin to hit a size itself (which may encode more than once). Falls back to the
         // plugin's own target-size mode when the duration could not be read.
-        final bps = t == null ? null : j.plannedVideoBps(t);
-        final res = resolution;
+        // The video details must be known before choosing the settings (a clip that was just
+        // added from "My clips" may not have been analysed yet).
+        j.info ??= await NativeBridge.info(j.path);
+        final info = j.info;
+        // "Auto" = balanced: at most 720p on the shorter side, with a bitrate worked out from the
+        // picture size. Everything is passed explicitly so the result never depends on the
+        // plugin's own defaults.
+        final res = resolution > 0 ? resolution : 720;
         final sz = j.scaledSize(res);
-        // A chosen resolution at or above the source's own: keep the picture untouched.
-        final keepRes = res > 0 && sz == null && j.info != null;
+        final keepRes = sz == null && info != null;
+        final bps = t == null ? _autoBps(info, sz) : j.plannedVideoBps(t);
         final Video video;
         var quality = VideoQuality.medium;
-        if (t != null && bps != null) {
+        if (bps != null) {
           video = Video(
             videoName: j.outName,
             videoBitrateInMbps: double.parse((bps / 1000000).toStringAsFixed(3)),
@@ -439,14 +458,23 @@ class CompressQueue extends ChangeNotifier {
             keepOriginalResolution: keepRes ? true : null,
           );
           // Very small targets look blocky at full size; a smaller picture is faster and cleaner.
-          if (res == 0 && (j.plannedDensity(t) ?? 1) < 0.06) quality = VideoQuality.low;
-        } else {
+          if (t != null && resolution == 0 && (j.plannedDensity(t) ?? 1) < 0.06) {
+            quality = VideoQuality.low;
+          }
+        } else if (t != null) {
           video = Video(
             videoName: j.outName,
             targetSizeMb: t,
             videoWidth: sz?.$1,
             videoHeight: sz?.$2,
             keepOriginalResolution: keepRes ? true : null,
+          );
+        } else {
+          // Nothing could be read from the file: a safe fixed bitrate at the original size.
+          video = Video(
+            videoName: j.outName,
+            videoBitrateInMbps: 2.5,
+            keepOriginalResolution: true,
           );
         }
         final r = await lc.compressVideo(

@@ -16,7 +16,6 @@ Future<void> main() async {
   await SettingsController.instance.load();
   CompressQueue.instance.percent =
       SettingsController.instance.targetPercent == 0 ? null : SettingsController.instance.targetPercent;
-  CompressQueue.instance.resolution = SettingsController.instance.compressRes;
   // Restore the list (e.g. after the app was closed while compressing in the background).
   await CompressQueue.instance.restore();
   runApp(const ShrinklyApp());

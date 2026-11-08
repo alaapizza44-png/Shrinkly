@@ -306,7 +306,6 @@ class TargetCard extends StatelessWidget {
                     onSelected: enabled
                         ? (_) {
                             CompressQueue.instance.setResolution(r);
-                            SettingsController.instance.setCompressRes(r);
                           }
                         : null,
                   ),
