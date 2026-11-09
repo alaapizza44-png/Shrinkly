@@ -393,6 +393,14 @@ class MainActivity : FlutterActivity() {
         val cropB = call.argument<Number>("cb")?.toFloat() ?: 1f
         val overlayPath = call.argument<String>("overlay")
         val sharpen = call.argument<Boolean>("sharpen") ?: false
+        // Blurred-background layout (video smaller than the frame, or partly cropped).
+        val blur = call.argument<Boolean>("blur") ?: false
+        val gw = call.argument<Number>("gw")?.toFloat() ?: 1f
+        val gh = call.argument<Number>("gh")?.toFloat() ?: 1f
+        val bw = call.argument<Number>("bw")?.toFloat() ?: 1f
+        val bh = call.argument<Number>("bh")?.toFloat() ?: 1f
+        val px = call.argument<Number>("px")?.toFloat() ?: 0.5f
+        val py = call.argument<Number>("py")?.toFloat() ?: 0.5f
         val speed = (call.argument<Number>("speed")?.toFloat() ?: 1f).coerceIn(0.25f, 4f)
 
         pending = result
@@ -409,7 +417,9 @@ class MainActivity : FlutterActivity() {
             val effects = ArrayList<Effect>()
             // 1) cut out the 9:16 window the user chose (normalised device coordinates: -1..1,
             //    y grows upwards), 2) scale it to the output size (never larger than the source).
-            if (cropL > 0.001f || cropT > 0.001f || cropR < 0.999f || cropB < 0.999f) {
+            if (blur) {
+                effects.add(BlurFitEffect(width, height, gw, gh, bw, bh, px, py))
+            } else if (cropL > 0.001f || cropT > 0.001f || cropR < 0.999f || cropB < 0.999f) {
                 effects.add(
                     androidx.media3.effect.Crop(
                         -1f + 2f * cropL,

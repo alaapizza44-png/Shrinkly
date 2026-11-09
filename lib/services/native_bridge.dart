@@ -93,6 +93,13 @@ class NativeBridge {
     String? overlayPath,
     double speed = 1.0,
     bool sharpen = false,
+    bool blur = false,
+    double gw = 1,
+    double gh = 1,
+    double bw = 1,
+    double bh = 1,
+    double px = 0.5,
+    double py = 0.5,
   }) async {
     try {
       final r = await _ch.invokeMethod<dynamic>('exportShort', <String, dynamic>{
@@ -110,6 +117,13 @@ class NativeBridge {
         'overlay': overlayPath,
         'speed': speed,
         'sharpen': sharpen,
+        'blur': blur,
+        'gw': gw,
+        'gh': gh,
+        'bw': bw,
+        'bh': bh,
+        'px': px,
+        'py': py,
       });
       if (r is Map) {
         return ExportOutcome((r['status'] as String?) ?? 'error', r['message'] as String?);

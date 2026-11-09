@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -276,23 +277,41 @@ class _ShortsScreenState extends State<ShortsScreen> {
       builder: (context, box) {
         final h = math.min(box.maxWidth * 16 / 9, screenH * 0.6);
         final w = h * 9 / 16;
-        final align = c.panHorizontal
-            ? Alignment(c.pan * 2 - 1, 0)
-            : Alignment(0, c.pan * 2 - 1);
+        Widget video(double fw, double fh) {
+          if (ready) return SizedBox(width: fw, height: fh, child: VideoPlayer(vp));
+          if (c.thumb != null) {
+            return Image.memory(c.thumb!, width: fw, height: fh, fit: BoxFit.fill, gaplessPlayback: true);
+          }
+          return SizedBox(width: fw, height: fh);
+        }
+
         Widget picture;
-        if (ready) {
-          picture = FittedBox(
-            fit: BoxFit.cover,
-            alignment: align,
+        if (ready || c.thumb != null) {
+          final fgW = c.wf * w;
+          final fgH = c.hf * h;
+          final dx = (w - fgW) * c.panX;
+          final dy = (h - fgH) * c.panYTop;
+          picture = Stack(
+            fit: StackFit.expand,
             clipBehavior: Clip.hardEdge,
-            child: SizedBox(
-              width: vp.value.size.width,
-              height: vp.value.size.height,
-              child: VideoPlayer(vp),
-            ),
+            children: <Widget>[
+              if (c.blurMode)
+                Positioned(
+                  left: (w - c.bgW * w) / 2,
+                  top: (h - c.bgH * h) / 2,
+                  width: c.bgW * w,
+                  height: c.bgH * h,
+                  child: ColoredBox(
+                    color: Colors.black,
+                    child: ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                      child: Opacity(opacity: 0.72, child: video(c.bgW * w, c.bgH * h)),
+                    ),
+                  ),
+                ),
+              Positioned(left: dx, top: dy, width: fgW, height: fgH, child: video(fgW, fgH)),
+            ],
           );
-        } else if (c.thumb != null) {
-          picture = Image.memory(c.thumb!, fit: BoxFit.cover, alignment: align, gaplessPlayback: true);
         } else {
           picture = const Center(child: CircularProgressIndicator());
         }
@@ -339,7 +358,7 @@ class _ShortsScreenState extends State<ShortsScreen> {
     final busy = c.exporting;
     final dur = c.durationMs;
     final loadingInfo = c.info == null;
-    final canPan = c.cropWFrac < 0.999 || c.cropHFrac < 0.999;
+    final canPan = c.canPan;
     final vp = _vp;
 
     return ListView(
@@ -466,6 +485,29 @@ class _ShortsScreenState extends State<ShortsScreen> {
                     ),
                   ],
                 ),
+        ),
+        const SizedBox(height: 12),
+
+        // zoom: whole picture (blurred background) <-> fill the screen
+        _Section(
+          icon: Icons.zoom_out_map_rounded,
+          title: context.tr('zoom_title'),
+          child: Column(
+            children: <Widget>[
+              Slider(
+                value: c.zoom,
+                onChanged: busy ? null : c.setZoom,
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(context.tr('zoom_whole'), style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                  Text(context.tr('zoom_fill'), style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+          footer: context.tr('zoom_sub'),
         ),
         const SizedBox(height: 12),
 

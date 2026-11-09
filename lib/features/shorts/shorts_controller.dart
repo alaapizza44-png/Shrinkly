@@ -44,6 +44,9 @@ class ShortsController extends ChangeNotifier {
   /// Playback speed of the clip: 0.5, 1, 1.5 or 2.
   double speed = 1.0;
 
+  /// 1 = fill the screen (crop), 0 = the whole picture with a blurred background around it.
+  double zoom = 1.0;
+
   /// Enlarge to 720x1280 and sharpen (helps low-resolution sources look clearer on screen).
   bool enhance = false;
   String text = '';
@@ -88,6 +91,25 @@ class ShortsController extends ChangeNotifier {
   double get cropLeft => panHorizontal ? pan * (1 - cropWFrac) : 0.0;
   double get cropTop => panHorizontal ? 0.0 : pan * (1 - cropHFrac);
 
+  // ---- layout used by the preview and the blurred-background export.
+  // All sizes are relative to the 9:16 output frame (1 = the full frame width / height).
+  double get _hfFit => math.min(1.0, _aspect / _srcAspect);
+  double get _hfFill => math.max(1.0, _aspect / _srcAspect);
+  double get hf => _hfFit + (_hfFill - _hfFit) * zoom;
+  double get wf => hf * _srcAspect / _aspect;
+  double get bgH => _hfFill;
+  double get bgW => _hfFill * _srcAspect / _aspect;
+
+  /// True when part of the frame is not covered by the video (blurred background is drawn).
+  bool get blurMode => zoom < 0.999;
+
+  /// The video is larger than the frame on some axis, so the user can choose which part stays.
+  bool get canPan => wf > 1.001 || hf > 1.001;
+
+  /// Pan in the video's horizontal / vertical direction (0.5 = centred), top-left based.
+  double get panX => wf > 1.001 ? pan : 0.5;
+  double get panYTop => (wf <= 1.001 && hf > 1.001) ? pan : 0.5;
+
   /// Real source pixels inside the window.
   double get _cropPxH => (info?.height ?? 0) * cropHFrac;
 
@@ -96,14 +118,24 @@ class ShortsController extends ChangeNotifier {
     return math.max(2, i - (i % 2));
   }
 
-  int get outHeight {
+  int get _fillHeight {
     if (enhance) return 1280;
     final want = quality == 720 ? 1280 : (quality == 480 ? 848 : (quality == 360 ? 640 : 1280));
     final src = _cropPxH;
     return _even(src > 0 ? math.min(want.toDouble(), src) : want);
   }
 
-  int get outWidth => _even(outHeight * _aspect);
+  /// Output width in blurred-background mode: never wider than the source can fill sharply.
+  int get _blurWidth {
+    var want = (enhance || quality == 720 || quality == 0) ? 720.0 : (quality == 480 ? 480.0 : 360.0);
+    final sw = info?.width ?? 0;
+    if (!enhance && quality == 0 && sw > 0) want = math.min(want, sw / wf);
+    return _even(math.max(160.0, want));
+  }
+
+  int get outHeight => blurMode ? _even(_blurWidth / _aspect) : _fillHeight;
+
+  int get outWidth => blurMode ? _blurWidth : _even(_fillHeight * _aspect);
 
   int get bitrate {
     final f = (info?.fps ?? 0) <= 0 ? 30.0 : (info!.fps).clamp(24.0, 60.0).toDouble();
@@ -162,6 +194,11 @@ class ShortsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setZoom(double v) {
+    zoom = v.clamp(0.0, 1.0).toDouble();
+    notifyListeners();
+  }
+
   void setSpeed(double v) {
     speed = v;
     notifyListeners();
@@ -190,6 +227,7 @@ class ShortsController extends ChangeNotifier {
       info = null;
       thumb = null;
       pan = 0.5;
+      zoom = 1.0;
       phase = ShortsPhase.idle;
       savedCount = 0;
       error = null;
@@ -262,6 +300,13 @@ class ShortsController extends ChangeNotifier {
           overlayPath: overlay,
           speed: speed,
           sharpen: enhance,
+          blur: blurMode,
+          gw: wf,
+          gh: hf,
+          bw: bgW,
+          bh: bgH,
+          px: panX,
+          py: 1 - panYTop,
         );
         if (r.cancelled) break;
         if (!r.ok) {
