@@ -46,7 +46,7 @@ private class SharpenProgram(useHdr: Boolean, private val amount: Float) : Singl
     override fun drawFrame(inputTexId: Int, presentationTimeUs: Long) {
         try {
             program.use()
-            program.setSamplerTexIdUniform("uTexSampler", inputTexId, false)
+            program.setSamplerTexIdUniform("uTexSampler", inputTexId, 0)
             program.setFloatsUniform("uTexel", floatArrayOf(1f / width, 1f / height))
             program.setFloatUniform("uAmount", amount)
             program.setBufferAttribute(
