@@ -392,6 +392,7 @@ class MainActivity : FlutterActivity() {
         val cropR = call.argument<Number>("cr")?.toFloat() ?: 1f
         val cropB = call.argument<Number>("cb")?.toFloat() ?: 1f
         val overlayPath = call.argument<String>("overlay")
+        val sharpen = call.argument<Boolean>("sharpen") ?: false
         val speed = (call.argument<Number>("speed")?.toFloat() ?: 1f).coerceIn(0.25f, 4f)
 
         pending = result
@@ -419,6 +420,7 @@ class MainActivity : FlutterActivity() {
                 )
             }
             effects.add(Presentation.createForWidthAndHeight(width, height, Presentation.LAYOUT_SCALE_TO_FIT))
+            if (sharpen) effects.add(SharpenEffect(0.6f))
             val audio = ArrayList<AudioProcessor>()
             if (Math.abs(speed - 1f) > 0.01f) {
                 effects.add(SpeedChangeEffect(speed))

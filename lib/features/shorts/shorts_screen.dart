@@ -512,6 +512,20 @@ class _ShortsScreenState extends State<ShortsScreen> {
         ),
         const SizedBox(height: 6),
         _CompactRow(
+          label: context.tr('enhance_title'),
+          chips: <Widget>[
+            _smallChip(context.tr('off'), !c.enhance, busy ? null : () => c.setEnhance(false)),
+            _smallChip(context.tr('on'), c.enhance, busy ? null : () => c.setEnhance(true)),
+          ],
+        ),
+        if (c.enhance)
+          Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 2),
+            child: Text(context.tr('enhance_sub'),
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5)),
+          ),
+        const SizedBox(height: 6),
+        _CompactRow(
           label: context.tr('quality_title'),
           chips: <Widget>[
             _smallChip(context.tr('quality_auto'), c.quality == 0, busy ? null : () => c.setQuality(0)),

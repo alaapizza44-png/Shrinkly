@@ -62,7 +62,10 @@ def write_kotlin():
     """Replaces MainActivity with ours (adds the video info / thumbnail channel)."""
     pkg, main_path = find_package()
     write(main_path, read(os.path.join(TPL, "MainActivity.kt.tpl")).replace("__PKG__", pkg))
-    print(f"[patch_android] MainActivity written for package {pkg}")
+    # Second Kotlin file: the GPU sharpen filter, next to MainActivity.
+    write(os.path.join(os.path.dirname(main_path), "SharpenEffect.kt"),
+          read(os.path.join(TPL, "SharpenEffect.kt.tpl")).replace("__PKG__", pkg))
+    print(f"[patch_android] MainActivity + SharpenEffect written for package {pkg}")
 
 
 MEDIA3 = "1.5.1"

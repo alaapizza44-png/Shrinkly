@@ -43,6 +43,9 @@ class ShortsController extends ChangeNotifier {
 
   /// Playback speed of the clip: 0.5, 1, 1.5 or 2.
   double speed = 1.0;
+
+  /// Enlarge to 720x1280 and sharpen (helps low-resolution sources look clearer on screen).
+  bool enhance = false;
   String text = '';
 
   /// Caption centre (fractions of the frame) and size (fraction of the frame width).
@@ -94,6 +97,7 @@ class ShortsController extends ChangeNotifier {
   }
 
   int get outHeight {
+    if (enhance) return 1280;
     final want = quality == 720 ? 1280 : (quality == 480 ? 848 : (quality == 360 ? 640 : 1280));
     final src = _cropPxH;
     return _even(src > 0 ? math.min(want.toDouble(), src) : want);
@@ -103,8 +107,10 @@ class ShortsController extends ChangeNotifier {
 
   int get bitrate {
     final f = (info?.fps ?? 0) <= 0 ? 30.0 : (info!.fps).clamp(24.0, 60.0).toDouble();
-    final bps = outWidth * outHeight * f * 0.11;
-    return bps.clamp(600000.0, 9000000.0).round();
+    // Small pictures need more bits per pixel to avoid blocky, smeared results.
+    final perPixel = outHeight <= 480 ? 0.22 : (outHeight <= 720 ? 0.16 : 0.11);
+    final bps = outWidth * outHeight * f * perPixel;
+    return bps.clamp(1500000.0, 10000000.0).round();
   }
 
   /// How many clips the current settings will produce.
@@ -148,6 +154,11 @@ class ShortsController extends ChangeNotifier {
 
   void setPartSeconds(int s) {
     partSeconds = s;
+    notifyListeners();
+  }
+
+  void setEnhance(bool v) {
+    enhance = v;
     notifyListeners();
   }
 
@@ -250,6 +261,7 @@ class ShortsController extends ChangeNotifier {
           outName: 'Short_${stamp}_${i + 1}.mp4',
           overlayPath: overlay,
           speed: speed,
+          sharpen: enhance,
         );
         if (r.cancelled) break;
         if (!r.ok) {
