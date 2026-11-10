@@ -1,0 +1,42 @@
+name: Publish privacy policy (GitHub Pages)
+
+# Publishes the docs/ folder as a website; the privacy policy will be at
+#   https://<your-user>.github.io/<repository>/privacy.html
+# One-time setup: Settings > Pages > Build and deployment > Source = "GitHub Actions".
+# Optional: add the repository VARIABLE CONTACT_EMAIL and it replaces the placeholder e-mail.
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put the contact e-mail in the policy
+        env:
+          CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+        run: |
+          if [ -n "$CONTACT_EMAIL" ]; then
+            sed -i "s/YOUR_EMAIL@example.com/$CONTACT_EMAIL/g" docs/privacy.html
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
