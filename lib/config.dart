@@ -1,5 +1,4 @@
-/// Ad configuration. IDs come from GitHub secrets via --dart-define; without them Google's
-/// official TEST ad units are used, so you can never click your own live ads while testing.
+/// Ad configuration. A GitHub secret passed via --dart-define overrides the built-in IDs.
 class AdConfig {
   AdConfig._();
 
@@ -9,7 +8,7 @@ class AdConfig {
   static const String _rewarded = String.fromEnvironment('ADMOB_REWARDED_ID');
 
   static String get rewardedId =>
-      _rewarded.isNotEmpty ? _rewarded : 'ca-app-pub-3940256099942544/5224354917';
+      _rewarded.isNotEmpty ? _rewarded : 'ca-app-pub-3442559127752747/3352192610';
 
   /// How long the watermark stays off after watching a rewarded ad.
   static const int watermarkFreeHours = 24;
@@ -18,7 +17,7 @@ class AdConfig {
       _banner.isNotEmpty ? _banner : 'ca-app-pub-3940256099942544/6300978111';
 
   static String get interstitialId =>
-      _interstitial.isNotEmpty ? _interstitial : 'ca-app-pub-3940256099942544/1033173712';
+      _interstitial.isNotEmpty ? _interstitial : 'ca-app-pub-3442559127752747/8745934180';
 
   /// Show an interstitial after every N-th finished compression job ...
   static const int interstitialEveryNJobs = 2;
