@@ -525,7 +525,7 @@ class _ShortsScreenState extends State<ShortsScreen> {
           const SizedBox(height: 12),
         ],
 
-        // clip length + quality: compact, small, side by side
+        // clip length: compact, small, side by side
         _CompactRow(
           label: context.tr('split_title'),
           chips: <Widget>[
@@ -566,14 +566,6 @@ class _ShortsScreenState extends State<ShortsScreen> {
             child: Text(context.tr('enhance_sub'),
                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5)),
           ),
-        const SizedBox(height: 6),
-        _CompactRow(
-          label: context.tr('quality_title'),
-          chips: <Widget>[
-            _smallChip(context.tr('quality_auto'), c.quality == 0, busy ? null : () => c.setQuality(0)),
-            _smallChip('720p', c.quality == 720, busy ? null : () => c.setQuality(720)),
-          ],
-        ),
         if (!loadingInfo)
           Padding(
             padding: const EdgeInsets.only(top: 2),
