@@ -285,35 +285,6 @@ class TargetCard extends StatelessWidget {
               Text(context.tr('target_pct_sub', <String, String>{'n': '$p'}),
                   style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
             ],
-            const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                Icon(Icons.aspect_ratio_rounded, color: cs.primary),
-                const SizedBox(width: 8),
-                Text(context.tr('res_title'),
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: <Widget>[
-                for (final r in const <int>[0, 720, 480, 360])
-                  ChoiceChip(
-                    label: Text(r == 0 ? context.tr('quality_auto') : '${r}p'),
-                    selected: CompressQueue.instance.resolution == r,
-                    onSelected: enabled
-                        ? (_) {
-                            CompressQueue.instance.setResolution(r);
-                          }
-                        : null,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(context.tr('res_sub'),
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
           ],
         ),
       ),
